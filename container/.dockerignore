@@ -1,0 +1,8 @@
+.git
+.gitignore
+image-manifest.json
+Dockerfile*
+*.md
+tmp
+node_modules
+build
