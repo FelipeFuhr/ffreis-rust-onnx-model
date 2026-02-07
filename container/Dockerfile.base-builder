@@ -1,0 +1,17 @@
+FROM ffreis/base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY scripts/install-rust.sh /tmp/install-rust.sh
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    gcc \
+    libc6-dev && \
+    sh /tmp/install-rust.sh -y && \
+    rm /tmp/install-rust.sh && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV PATH=/root/.cargo/bin:$PATH
