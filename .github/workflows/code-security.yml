@@ -45,6 +45,6 @@ jobs:
           cargo audit
 
       - name: Snyk scan
-        uses: snyk/actions/rust@v2
+        uses: snyk/actions/rust@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
