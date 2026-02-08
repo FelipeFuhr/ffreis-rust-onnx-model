@@ -2,27 +2,18 @@ name: Container Vulnerability Scan (Grype)
 
 on:
   workflow_dispatch:
-    permissions:
-      contents: read
-      security-events: write
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  grype:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-    strategy:
-      matrix:
-        image:
-          - ffreis/base
-          - ffreis/base-builder
-          - ffreis/builder
-          - ffreis/base-runner
-          - ffreis/runner
-        tar:
-          - base.tar
-          - base-builder.tar
-          - builder.tar
-          - base-runner.tar
-          - runner.tar
 
     steps:
       - uses: actions/checkout@v4
@@ -48,18 +39,23 @@ on:
         run: |
           set -euo pipefail
           mkdir -p artifacts grype-results
+
           images=(ffreis/base ffreis/base-builder ffreis/builder ffreis/base-runner ffreis/runner)
+
           for image in "${images[@]}"; do
             name="${image##*/}"
             tar="artifacts/${name}.tar"
+
             podman save -o "$tar" "$image"
             test -s "$tar"
+
             ./bin/grype "$tar" -o sarif -f "grype-results/${name}.sarif"
             test -s "grype-results/${name}.sarif"
           done
 
       - name: Upload Grype SARIF
-        if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) }}
+        # Upload on push + workflow_dispatch always; on PR only if not from a fork
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: grype-results

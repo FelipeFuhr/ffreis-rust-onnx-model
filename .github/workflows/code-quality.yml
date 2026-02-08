@@ -1,6 +1,8 @@
 name: Code Quality (Sonar)
 
 on:
+  pull_request:
+    branches: [ main ]
   push:
     branches: [ main ]
 

@@ -8,8 +8,9 @@ on:
 
 jobs:
   matrix-build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         rust: [1.80.0, stable]
         os: [ubuntu-latest, macos-latest]
@@ -22,12 +23,12 @@ jobs:
       - name: Build
         run: |
           set -euo pipefail
-          cd app
+          if [ -d app ]; then cd app; fi
           cargo build --release
       - name: Test
         run: |
           set -euo pipefail
-          cd app
+          if [ -d app ]; then cd app; fi
           cargo test --release
 
   container-smoke:
@@ -39,3 +40,20 @@ jobs:
         run: |
           set -euo pipefail
           make build
+
+  pr-summary:
+    name: PR Summary
+    if: always()
+    needs: [matrix-build, container-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed/cancelled
+        run: |
+          set -euo pipefail
+          echo "matrix-build result: ${{ needs.matrix-build.result }}"
+          echo "container-smoke result: ${{ needs.container-smoke.result }}"
+
+          if [[ "${{ needs.matrix-build.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.container-smoke.result }}" != "success" ]]; then exit 1; fi
+
+          echo "All checks passed."
