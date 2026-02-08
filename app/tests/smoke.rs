@@ -29,3 +29,17 @@ fn repeat_word_works() {
     assert_eq!(app::repeat_word("hi", 1), "hi");
     assert_eq!(app::repeat_word("hi", 3), "hi hi hi");
 }
+
+#[test]
+fn binary_runs() {
+    let exe = env!("CARGO_BIN_EXE_app");
+    let output = std::process::Command::new(exe)
+        .output()
+        .expect("run app binary");
+
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "Hello, world!"
+    );
+}

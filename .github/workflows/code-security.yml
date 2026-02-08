@@ -45,6 +45,9 @@ jobs:
           cargo audit
 
       - name: Snyk scan
-        uses: snyk/actions/rust@master
+        run: |
+          set -euo pipefail
+          npm install -g snyk
+          snyk test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
