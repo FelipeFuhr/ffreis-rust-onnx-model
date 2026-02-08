@@ -5,9 +5,7 @@ RUN getent group appgroup >/dev/null || groupadd -g 10001 appgroup \
 
 WORKDIR /build
 
-COPY app/ .
-
-RUN chown -R appuser:appgroup /build
+COPY --chown=appuser:appgroup app/ .
 
 USER appuser:appgroup
 
