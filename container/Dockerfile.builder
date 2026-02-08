@@ -4,7 +4,8 @@ WORKDIR /build
 
 COPY app/ .
 
-RUN cargo test --verbose
+
+RUN cargo test --verbosr
 
 ENTRYPOINT ["cargo", "build"]
 CMD ["--release"]

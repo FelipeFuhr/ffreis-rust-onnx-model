@@ -7,4 +7,5 @@ WORKDIR /run
 
 COPY build/${APP_NAME} ${APP_NAME}
 
+
 ENTRYPOINT ["/run/entrypoint.sh"]

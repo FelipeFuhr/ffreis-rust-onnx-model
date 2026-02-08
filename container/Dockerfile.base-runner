@@ -2,4 +2,5 @@ FROM ffreis/base
 
 WORKDIR /run
 
+
 COPY scripts/entrypoint.sh entrypoint.sh
