@@ -2,6 +2,10 @@
 
 A minimal guide to building Rust applications with Docker using multi-stage builds for lightweight container images.
 
+<!-- CI Badges: replace OWNER/REPO with your repo -->
+[![Docker Build](https://github.com/FelipeFuhr/ffreis-rust-onnx-model/actions/workflows/docker-build.yml/badge.svg?branch=main)](https://github.com/FelipeFuhr/ffreis-rust-onnx-model/actions/workflows/docker-build.yml)
+[![CI All](https://github.com/FelipeFuhr/ffreis-rust-onnx-model/actions/workflows/ci-all.yml/badge.svg?branch=main)](https://github.com/FelipeFuhr/ffreis-rust-onnx-model/actions/workflows/ci-all.yml)
+
 ## What is this?
 
 This project demonstrates a **multi-stage Docker build** that:

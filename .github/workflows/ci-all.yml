@@ -1,0 +1,44 @@
+name: CI All
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  matrix-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [1.72.0, stable]
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+      - name: Build
+        run: |
+          cd app
+          cargo build --release
+      - name: Test
+        run: |
+          cd app
+          cargo test --release
+
+  container-smoke:
+    needs: matrix-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: |
+          make build-builder
+      - name: Run builder to populate build/
+        run: |
+          make run-builder
+      - name: Run runtime smoke test
+        run: |
+          docker run --rm -v ${{ github.workspace }}/build:/run -w /run ubuntu:26.04 sh -c "ls -al || true"

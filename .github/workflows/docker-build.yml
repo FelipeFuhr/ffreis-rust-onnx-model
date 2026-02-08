@@ -1,0 +1,20 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Podman
+        uses: containers/podman-action@v2
+      - name: Ensure podman is usable
+        run: podman --version
+      - name: Build container images with Podman
+        run: |
+          CONTAINER_COMMAND=podman make build
