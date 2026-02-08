@@ -117,7 +117,8 @@ build-images: get-rust build-base build-base-builder build-builder build-base-ru
 .PHONY: run-builder
 run-builder: build-builder ## Run builder container to produce release artifact
 	$(CONTAINER_COMMAND) run --rm \
-		-v "$(CURDIR)/build:/build/target/release" \
+		-e CARGO_TARGET_DIR=/build/target \
+		-v "$(CURDIR)/build:/build/target" \
 		-v "$(CURDIR)/app:/build" \
 		$(BUILDER_IMAGE)
 
