@@ -17,6 +17,9 @@ concurrency:
 jobs:
   semgrep:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - uses: actions/checkout@v4
@@ -40,9 +43,6 @@ jobs:
 
       - name: Upload Semgrep SARIF
         if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) }}
-        permissions:
-          security-events: write
-          contents: read
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
