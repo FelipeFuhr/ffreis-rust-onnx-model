@@ -53,3 +53,4 @@ coverage-check: ## Fail if coverage is below COVERAGE_MIN
 	$(MAKE) coverage
 	@COVERAGE_MIN="$(COVERAGE_MIN)" COVERAGE_XML="$(COVERAGE_XML)" \
 		$(PYTHON) $(CHECK_COVERAGE_SCRIPT)
+		

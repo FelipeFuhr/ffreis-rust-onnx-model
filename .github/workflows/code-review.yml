@@ -35,14 +35,8 @@ jobs:
           workspaces: |
             app -> target
 
-      - name: Lint (Makefile)
+      - name: Lint
         run: make -C app lint
-
-      - name: Install lefthook
-        run: make lefthook-install
-
-      - name: Run lefthook hooks
-        run: make lefthook-run
 
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked
@@ -54,4 +48,4 @@ jobs:
         run: make -C app test
 
       - name: Coverage threshold
-        run: make coverage-check
+        run: make -C app coverage-check

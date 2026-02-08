@@ -4,7 +4,7 @@
 SHELL := /usr/bin/env bash
 CARGO ?= cargo
 CONTAINER_COMMAND := podman
-LEFTHOOK_BIN ?= ./bin/lefthook
+LEFTHOOK ?= $(or $(wildcard $(LEFTHOOK_BIN)),lefthook)
 
 # Image names
 PREFIX:=ffreis
@@ -110,6 +110,33 @@ coverage: ## Generate coverage report (Cobertura XML) into ./coverage/
 coverage-check: ## Fail if coverage is below COVERAGE_MIN
 	$(MAKE) -C app coverage-check
 
+.PHONY: lefthook-bootstrap
+lefthook-bootstrap: ## Download lefthook locally into ./.bin
+	@mkdir -p .bin
+	@if [ ! -x "$(LEFTHOOK_BIN)" ]; then \
+		echo "Downloading lefthook $(LEFTHOOK_VERSION)..." ; \
+		curl -fsSL -o "$(LEFTHOOK_BIN)" \
+		  "https://github.com/evilmartians/lefthook/releases/download/v$(LEFTHOOK_VERSION)/lefthook_$(LEFTHOOK_VERSION)_Linux_x86_64"; \
+		chmod +x "$(LEFTHOOK_BIN)"; \
+	fi
+
+.PHONY: lefthook-install
+lefthook-install: lefthook-bootstrap
+	@if command -v lefthook >/dev/null 2>&1; then \
+		lefthook install; \
+	else \
+		echo "lefthook not found. Install it or set LEFTHOOK_BIN."; \
+		exit 1; \
+	fi
+
+.PHONY: lefthook-run
+lefthook-run:
+	@$(LEFTHOOK) run pre-commit
+	@$(LEFTHOOK) run pre-push
+
+.PHONY: lefthook
+lefthook: lefthook-install lefthook-run
+
 .PHONY: clean-app
 clean-app:
 	$(MAKE) -C app clean
@@ -142,23 +169,3 @@ clean-runner:
 .PHONY: clean-all
 clean-all: clean-app clean-repo clean-base clean-base-builder clean-builder clean-base-runner clean-runner
 
-.PHONY: lefthook-install
-lefthook-install: ## Install lefthook hooks
-	@if [ ! -x "$(LEFTHOOK_BIN)" ]; then \
-		curl -sSfL https://raw.githubusercontent.com/evilmartians/lefthook/master/install.sh | bash; \
-	fi
-	@if [ -x "$(LEFTHOOK_BIN)" ]; then \
-		$(LEFTHOOK_BIN) install; \
-	else \
-		lefthook install; \
-	fi
-
-.PHONY: lefthook-run
-lefthook-run: ## Run lefthook (pre-commit and pre-push)
-	@if [ -x "$(LEFTHOOK_BIN)" ]; then \
-		$(LEFTHOOK_BIN) run pre-commit; \
-		$(LEFTHOOK_BIN) run pre-push; \
-	else \
-		lefthook run pre-commit; \
-		lefthook run pre-push; \
-	fi
