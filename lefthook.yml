@@ -10,17 +10,14 @@ pre-commit:
       run: make -C app lint
 
     hygiene:
-      group:
-        commands:
-          conflict-markers:
-            run: |
-              if grep -R --line-number --binary-files=without-match \
-                --exclude-dir=.git --exclude-dir=target --exclude-dir=build --exclude-dir=coverage \
-                --exclude=.lefthook.yml \
-                -E '^(<<<<<<<|=======|>>>>>>>)' .; then
-                echo "Merge conflict markers found"
-                exit 1
-              fi
+      run: |
+        if grep -R --line-number --binary-files=without-match \
+          --exclude-dir=.git --exclude-dir=target --exclude-dir=build --exclude-dir=coverage \
+          --exclude=lefthook.yml \
+          -E '^(<<<<<<<|=======|>>>>>>>)' .; then
+          echo "Merge conflict markers found"
+          exit 1
+        fi
 
 pre-push:
   parallel: false
