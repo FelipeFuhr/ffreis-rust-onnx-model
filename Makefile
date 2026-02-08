@@ -156,7 +156,11 @@ lefthook-bootstrap: ## Download lefthook binary into ./.bin
 	./scripts/bootstrap_lefthook.sh
 
 .PHONY: lefthook-install
-lefthook-install: lefthook-bootstrap ## Install git hooks
+lefthook-install: lefthook-bootstrap ## Install git hooks if missing
+	@if [ -x "$(LEFTHOOK_BIN)" ] && [ -x ".git/hooks/pre-commit" ] && [ -x ".git/hooks/pre-push" ]; then \
+		echo "lefthook hooks already installed"; \
+		exit 0; \
+	fi
 	"$(LEFTHOOK_BIN)" install
 
 .PHONY: lefthook-run
@@ -165,7 +169,18 @@ lefthook-run: lefthook-bootstrap ## Run hooks (pre-commit + pre-push)
 	"$(LEFTHOOK_BIN)" run pre-push
 
 .PHONY: lefthook
-lefthook: lefthook-install lefthook-run ## Install hooks and run them
+lefthook: lefthook-bootstrap lefthook-install lefthook-run ## Install hooks and run them
+
+.PHONY: install-lefthook-local
+install-lefthook-local: ## Print path to lefthook binary (for debugging)
+	@if command -v lefthook >/dev/null 2>&1; then \
+		echo "lefthook already installed: $$(command -v lefthook)"; \
+		exit 0; \
+	fi
+	curl -1sLf 'https://dl.cloudsmith.io/public/evilmartians/lefthook/setup.deb.sh' | sudo -E bash
+	sudo apt install lefthook
+
+lefthook-local: install-lefthook-local lefthook-install lefthook-run
 
 # ------------------------------------------------------------------------------
 # Cleaning

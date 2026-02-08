@@ -1,7 +1,6 @@
 pre-commit:
   parallel: true
   commands:
-
     rustfmt:
       glob: "app/**/*.rs"
       run: make -C app fmt
@@ -11,18 +10,20 @@ pre-commit:
       run: make -C app lint
 
     hygiene:
-      glob: "*"
-      run: |
-        bash -c '
-          if grep -R "<<<<<<<\|=======\|>>>>>>>" -n .; then
-            echo "Merge conflict markers found"
-            exit 1
-          fi
-        '
+      group:
+        commands:
+          conflict-markers:
+            run: |
+              if grep -R --line-number --binary-files=without-match \
+                --exclude-dir=.git --exclude-dir=target --exclude-dir=build --exclude-dir=coverage \
+                --exclude=.lefthook.yml \
+                -E '^(<<<<<<<|=======|>>>>>>>)' .; then
+                echo "Merge conflict markers found"
+                exit 1
+              fi
 
 pre-push:
   parallel: false
   commands:
-
     tests:
       run: make -C app test
