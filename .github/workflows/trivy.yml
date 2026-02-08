@@ -68,10 +68,15 @@ jobs:
           done
         env:
           GH_TOKEN: ${{ github.token }}
-      - name: Upload Trivy SARIF as artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-sarif-results
-          path: trivy-results/*.sarif
-          retention-days: 30
+      - name: Upload Trivy SARIF (per image)
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in trivy-results/*.sarif; do
+            name="$(basename "$f" .sarif)"
+            echo "Uploading $f as category trivy-$name"
+            echo "SARIF_FILE=$f" >> $GITHUB_ENV
+            echo "SARIF_CATEGORY=trivy-$name" >> $GITHUB_ENV
+            # run one at a time by calling the action in separate steps is awkward
+          done

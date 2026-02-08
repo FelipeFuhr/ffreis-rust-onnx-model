@@ -68,9 +68,6 @@ jobs:
           test -f Cargo.toml
           test -f Cargo.lock
 
-          snyk test \
-            --package-manager=cargo \
-            --file=Cargo.toml \
-            --all-projects
+          snyk test
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
