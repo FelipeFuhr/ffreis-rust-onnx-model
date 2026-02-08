@@ -103,7 +103,7 @@ build-builder: build-base build-base-builder ## Build builder image
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.builder -t $(BUILDER_IMAGE) $(BASE_DIR)
 
 .PHONY: build-base-runner
-build-base-runner: ## Build base-runner image
+build-base-runner: build-base ## Build base-runner image
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base-runner -t $(BASE_RUNNER_IMAGE) $(BASE_DIR)
 
 .PHONY: build-runner
