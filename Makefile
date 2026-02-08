@@ -95,7 +95,7 @@ build-base: ## Build base image (pinned by digest env)
 		--build-arg BASE_DIGEST="$(BASE_DIGEST_VALUE)"
 
 .PHONY: build-base-builder
-build-base-builder: get-rust ## Build base-builder image
+build-base-builder: build-base get-rust ## Build base-builder image
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base-builder -t $(BASE_BUILDER_IMAGE) $(BASE_DIR)
 
 .PHONY: build-builder
