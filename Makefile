@@ -69,6 +69,7 @@ run-builder:
 		-v $(PWD)/app:/build \
 		$(BUILDER_IMAGE)
 
+.PHONY: build
 build: build-images run-builder
 
 .PHONY: run-app
@@ -80,36 +81,30 @@ run: run-app
 
 .PHONY: fmt
 fmt:
-	cargo fmt --all
+	$(MAKE) -C app fmt
 
 .PHONY: fmt-check
 fmt-check:
-	cargo fmt --all -- --check
+	$(MAKE) -C app fmt-check
 
 .PHONY: clippy
 clippy:
-	cargo clippy --all-targets --all-features
+	$(MAKE) -C app clippy
 
 .PHONY: test
 test:
-	cargo test --verbose
+	$(MAKE) -C app test
 
 .PHONY: lint
 lint: fmt-check clippy
 
 .PHONY: coverage
 coverage: ## Generate coverage report (Cobertura XML) into ./coverage/
-	@command -v cargo-llvm-cov >/dev/null 2>&1 || { \
-		echo "cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov --locked"; \
-		exit 1; \
-	}
-	mkdir -p coverage
-	cargo llvm-cov --all-features --cobertura --output-path coverage/cobertura.xml
+	$(MAKE) -C app coverage
 
 .PHONY: clean-app
 clean-app:
-	$(CARGO) clean || true
-	rm -rf app/target
+	$(MAKE) -C app clean
 
 .PHONY: clean-repo
 clean-repo: clean-app
@@ -138,4 +133,3 @@ clean-runner:
 
 .PHONY: clean-all
 clean-all: clean-app clean-repo clean-base clean-base-builder clean-builder clean-base-runner clean-runner
-
