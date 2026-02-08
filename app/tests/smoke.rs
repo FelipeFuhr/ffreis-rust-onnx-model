@@ -52,9 +52,9 @@ fn toggle_works() {
 
 #[test]
 fn binary_runs() {
-    let exe = match std::env::var("CARGO_BIN_EXE_app") {
-        Ok(path) => path,
-        Err(_) => return, // Skip when binary is not built in this context
+    let exe = match option_env!("CARGO_BIN_EXE_app") {
+        Some(path) => path,
+        None => return, // Skip when binary is not built in this context
     };
 
     let output = std::process::Command::new(exe)

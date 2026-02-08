@@ -59,15 +59,21 @@ jobs:
           for image in "${images[@]}"; do
             name="${image##*/}"
             tar="artifacts/${name}.tar"
+            out="grype-results/${name}.sarif"
 
             podman save -o "$tar" "$image"
             test -s "$tar"
 
-            ./bin/grype "$tar" \
+            # IMPORTANT:
+            # - podman save -> OCI archive, so use oci-archive:
+            # - --file writes report to a file
+            # - --fail-on controls exit code
+            ./bin/grype "oci-archive:${tar}" \
               -o sarif \
-              -f "grype-results/${name}.sarif" \
+              --file "$out" \
               --fail-on high
-            test -s "grype-results/${name}.sarif"
+
+            test -s "$out"
           done
 
       - name: Upload Grype SARIF
