@@ -2,20 +2,9 @@ name: Container Vulnerability Scan (Grype)
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [ main ]
-  push:
-    branches: [ main ]
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  grype:
+    permissions:
+      contents: read
+      security-events: write
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,24 +38,28 @@ jobs:
           set -euo pipefail
           CONTAINER_COMMAND=podman make build
 
-      - name: Save image tar
+      - name: Install Grype
         run: |
           set -euo pipefail
-          mkdir -p artifacts
-          podman save -o "artifacts/${{ matrix.tar }}" "${{ matrix.image }}"
-          test -s "artifacts/${{ matrix.tar }}"
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b ./bin
+          ./bin/grype version
 
       - name: Grype scan (SARIF)
-        uses: anchore/scan-action@v7.2.2
-        with:
-          path: artifacts/${{ matrix.tar }}
-          fail-build: true
-          severity-cutoff: high
-          output-format: sarif
-          output-file: grype-${{ matrix.tar }}.sarif
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts grype-results
+          images=(ffreis/base ffreis/base-builder ffreis/builder ffreis/base-runner ffreis/runner)
+          for image in "${images[@]}"; do
+            name="${image##*/}"
+            tar="artifacts/${name}.tar"
+            podman save -o "$tar" "$image"
+            test -s "$tar"
+            ./bin/grype "$tar" -o sarif -f "grype-results/${name}.sarif"
+            test -s "grype-results/${name}.sarif"
+          done
 
       - name: Upload Grype SARIF
         if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: grype-${{ matrix.tar }}.sarif
+          sarif_file: grype-results

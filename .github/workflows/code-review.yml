@@ -45,6 +45,12 @@ jobs:
           set -euo pipefail
           cargo install cargo-llvm-cov --locked
 
+      - name: Install Python deps for coverage
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install defusedxml
+
       - name: Build (Makefile)
         run: |
           set -euo pipefail

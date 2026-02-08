@@ -1,4 +1,6 @@
-import os, sys, xml.etree.ElementTree as ET
+import os
+import sys
+from defusedxml import ElementTree as ET
 
 min_cov = float(os.environ.get("COVERAGE_MIN", "90"))
 path = os.environ.get("COVERAGE_XML", "../coverage/cobertura.xml")
