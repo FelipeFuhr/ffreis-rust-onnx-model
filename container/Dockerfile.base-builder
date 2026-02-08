@@ -2,7 +2,6 @@ FROM ffreis/base
 
 COPY scripts/install-rust.sh /tmp/install-rust.sh
 
-
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
