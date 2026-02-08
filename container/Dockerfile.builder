@@ -7,9 +7,11 @@ WORKDIR /build
 
 COPY --chown=appuser:appgroup app/ .
 
-USER appuser:appgroup
+USER root
 
 RUN cargo test --verbose
+
+USER appuser:appgroup
 
 ENTRYPOINT ["cargo", "build"]
 CMD ["--release"]
