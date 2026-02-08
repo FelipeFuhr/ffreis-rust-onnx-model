@@ -61,6 +61,29 @@ all: lint build run coverage ## Lint, build, run, and generate coverage
 get-rust: ## Download rustup installer script (used by container builds)
 	curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs -o scripts/install-rust.sh
 
+.PHONY: install-rust-local
+install-rust-local: ## Install Rust locally if missing
+	@if command -v cargo >/dev/null 2>&1; then \
+		echo "cargo already installed: $$(command -v cargo)"; \
+		exit 0; \
+	fi
+	curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y
+	@if [ -f "$$HOME/.cargo/env" ]; then \
+		. "$$HOME/.cargo/env"; \
+	fi
+
+.PHONY: install-podman-local
+install-podman-local: ## Install Podman locally if missing
+	@if command -v podman >/dev/null 2>&1; then \
+		echo "podman already installed: $$(command -v podman)"; \
+		exit 0; \
+	fi
+	sudo apt-get update
+	sudo apt-get install -y podman
+
+.PHONY: local-setup
+local-setup: install-rust-local install-podman-local lefthook-install ## Install local dev prerequisites
+
 # ------------------------------------------------------------------------------
 # Container builds
 # ------------------------------------------------------------------------------
