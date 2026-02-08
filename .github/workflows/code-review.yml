@@ -1,4 +1,4 @@
-name: code-review
+name: Code Review (Lint + Test)
 
 on:
   pull_request:

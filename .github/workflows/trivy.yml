@@ -1,4 +1,4 @@
-name: trivy-image-scan
+name: Container Vulnerability Scan (Trivy)
 on:
   push:
     branches: [ main ]

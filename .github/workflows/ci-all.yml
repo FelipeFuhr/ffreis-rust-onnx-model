@@ -1,4 +1,4 @@
-name: CI All
+name: Build All
 
 on:
   pull_request:
@@ -35,10 +35,4 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build images
         run: |
-          make build-builder
-      - name: Run builder to populate build/
-        run: |
-          make run-builder
-      - name: Run runtime smoke test
-        run: |
-          docker run --rm -v ${{ github.workspace }}/build:/run -w /run ubuntu:26.04 sh -c "ls -al || true"
+          make build

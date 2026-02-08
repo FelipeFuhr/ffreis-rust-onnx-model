@@ -1,4 +1,4 @@
-name: coverage
+name: Code Coverage (Codecov)
 
 on:
   pull_request:

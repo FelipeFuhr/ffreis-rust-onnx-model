@@ -1,4 +1,4 @@
-name: grype-image-scan
+name: Container Vulnerability Scan (Grype)
 
 on:
   pull_request:

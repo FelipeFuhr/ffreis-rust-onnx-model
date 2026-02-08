@@ -1,4 +1,4 @@
-name: quality-tools
+name: Code Quality (Sonar)
 
 on:
   push:

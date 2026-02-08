@@ -1,6 +1,6 @@
-ARG APP_NAME=__APP_NAME__
-
 FROM ffreis/base
+
+ARG APP_NAME=__APP_NAME__
 
 WORKDIR /run
 
