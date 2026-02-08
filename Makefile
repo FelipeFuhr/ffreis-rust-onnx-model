@@ -50,27 +50,30 @@ build-builder: build-base build-base-builder
 
 .PHONY: build-base-runner
 build-base-runner:
-	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base-runner -t $(BASE_RUNNER_IMAGE) . \
-		--build-arg APP_NAME=$(APP_NAME)
+	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base-runner -t $(BASE_RUNNER_IMAGE) .
 
 .PHONY: build-runner
-build-runner:
+build-runner: build-base-runner run-builder
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.runner -t $(RUNNER_IMAGE) . \
 		--build-arg APP_NAME=$(APP_NAME)
 
 # Build everything (may be slow)
 .PHONY: build-images
-build-images: get-rust build-base build-base-builder build-builder build-base-runner build-runner
+build-images: get-rust build-base build-base-builder build-builder build-base-runner
 
 .PHONY: run-builder
-run-builder:
+run-builder: build-builder
 	$(CONTAINER_COMMAND) run --rm \
 		-v $(PWD)/build:/build/target/release \
 		-v $(PWD)/app:/build \
 		$(BUILDER_IMAGE)
 
 .PHONY: build
-build: build-images run-builder
+build: build-images run-builder build-runner
+
+.PHONY: build-app-local
+build-app-local:
+	$(MAKE) -C app build
 
 .PHONY: run-app
 run-app:

@@ -3,4 +3,8 @@ FROM ffreis/base-runner
 ARG APP_NAME=__APP_NAME__
 ENV APP_NAME=${APP_NAME}
 
+WORKDIR /run
+
+COPY build/${APP_NAME} ${APP_NAME}
+
 ENTRYPOINT ["/run/entrypoint.sh"]

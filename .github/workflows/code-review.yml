@@ -27,7 +27,7 @@ jobs:
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
-          components: rustfmt, clippy
+          components: rustfmt, clippy, llvm-tools-preview
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
@@ -43,3 +43,9 @@ jobs:
 
       - name: Test (Makefile)
         run: make -C app test
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
+      - name: Coverage threshold (90%)
+        run: make -C app coverage-check

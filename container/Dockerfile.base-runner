@@ -1,8 +1,5 @@
 FROM ffreis/base
 
-ARG APP_NAME=__APP_NAME__
-
 WORKDIR /run
 
-COPY build/${APP_NAME} ${APP_NAME}
 COPY scripts/entrypoint.sh entrypoint.sh

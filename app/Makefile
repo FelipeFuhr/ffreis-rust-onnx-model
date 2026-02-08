@@ -26,6 +26,10 @@ lint: fmt-check clippy ## Run format check and clippy
 test: ## Run tests
 	$(CARGO) test --verbose
 
+.PHONY: build
+build: ## Build the app
+	$(CARGO) build --verbose
+
 .PHONY: coverage
 coverage: ## Generate coverage report (Cobertura XML) into ../coverage/
 	@command -v cargo-llvm-cov >/dev/null 2>&1 || { \
@@ -34,6 +38,14 @@ coverage: ## Generate coverage report (Cobertura XML) into ../coverage/
 	}
 	mkdir -p ../coverage
 	$(CARGO) llvm-cov --all-features --cobertura --output-path ../coverage/cobertura.xml
+
+.PHONY: coverage-check
+coverage-check: ## Fail if coverage is below 90%
+	@command -v cargo-llvm-cov >/dev/null 2>&1 || { \
+		echo "cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov --locked"; \
+		exit 1; \
+	}
+	$(CARGO) llvm-cov --all-features --fail-under 90
 
 .PHONY: clean
 clean: ## Clean build artifacts
