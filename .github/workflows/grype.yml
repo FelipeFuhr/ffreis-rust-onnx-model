@@ -64,18 +64,15 @@ jobs:
             podman save -o "$tar" "$image"
             test -s "$tar"
 
-            # IMPORTANT:
-            # - podman save -> OCI archive, so use oci-archive:
-            # - --file writes report to a file
-            # - --fail-on controls exit code
-            ./bin/grype "oci-archive:${tar}" \
-              -o sarif \
-              --file "$out" \
-              --fail-on high
+            # Try as OCI archive first (podman default), fallback to docker archive.
+            if ./bin/grype "oci-archive:${tar}" -o sarif --file "$out" --fail-on high; then
+              :
+            else
+              ./bin/grype "docker-archive:${tar}" -o sarif --file "$out" --fail-on high
+            fi
 
             test -s "$out"
           done
-
       - name: Upload Grype SARIF
         # Upload on push + workflow_dispatch always; on PR only if not from a fork
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
