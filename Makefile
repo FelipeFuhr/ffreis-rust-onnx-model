@@ -95,7 +95,7 @@ build-base: ## Build base image (pinned by digest env)
 		--build-arg BASE_DIGEST="$(BASE_DIGEST_VALUE)"
 
 .PHONY: build-base-builder
-build-base-builder: get-rust ## Build base-builder image
+build-base-builder: build-base get-rust ## Build base-builder image
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base-builder -t $(BASE_BUILDER_IMAGE) $(BASE_DIR)
 
 .PHONY: build-builder
@@ -103,7 +103,7 @@ build-builder: build-base build-base-builder ## Build builder image
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.builder -t $(BUILDER_IMAGE) $(BASE_DIR)
 
 .PHONY: build-base-runner
-build-base-runner: ## Build base-runner image
+build-base-runner: build-base ## Build base-runner image
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base-runner -t $(BASE_RUNNER_IMAGE) $(BASE_DIR)
 
 .PHONY: build-runner
@@ -117,7 +117,8 @@ build-images: get-rust build-base build-base-builder build-builder build-base-ru
 .PHONY: run-builder
 run-builder: build-builder ## Run builder container to produce release artifact
 	$(CONTAINER_COMMAND) run --rm \
-		-v "$(CURDIR)/build:/build/target/release" \
+		-e CARGO_TARGET_DIR=/build/target \
+		-v "$(CURDIR)/build:/build/target" \
 		-v "$(CURDIR)/app:/build" \
 		$(BUILDER_IMAGE)
 
