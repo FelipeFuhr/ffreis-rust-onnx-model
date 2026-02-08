@@ -1,0 +1,68 @@
+name: Build All
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  matrix-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [1.80.0, stable]
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: ${{ matrix.rust }}
+      - name: Build
+        run: |
+          set -euo pipefail
+          if [ -d app ]; then cd app; fi
+          cargo build --release
+      - name: Test
+        run: |
+          set -euo pipefail
+          if [ -d app ]; then cd app; fi
+          cargo test --release
+
+  container-smoke:
+    needs: matrix-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Podman
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y podman
+      - name: Build images
+        run: |
+          set -euo pipefail
+          make build
+
+  pr-summary:
+    name: PR Summary
+    if: always()
+    needs: [matrix-build, container-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed/cancelled
+        run: |
+          set -euo pipefail
+          echo "matrix-build result: ${{ needs.matrix-build.result }}"
+          echo "container-smoke result: ${{ needs.container-smoke.result }}"
+
+          if [[ "${{ needs.matrix-build.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.container-smoke.result }}" != "success" ]]; then exit 1; fi
+
+          echo "All checks passed."

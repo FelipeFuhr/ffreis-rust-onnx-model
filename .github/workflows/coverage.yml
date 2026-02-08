@@ -1,0 +1,60 @@
+name: Code Coverage (Codecov)
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        with:
+          workspaces: |
+            app -> target
+
+      - name: Install cargo-llvm-cov
+        run: |
+          set -euo pipefail
+          cargo install cargo-llvm-cov --locked
+
+      - name: Install Python deps for coverage
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install defusedxml
+
+      - name: Generate coverage (Makefile)
+        run: |
+          set -euo pipefail
+          make -C app coverage
+          test -s coverage/cobertura.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
+        with:
+          files: ./coverage/cobertura.xml
+          fail_ci_if_error: true
+          verbose: true

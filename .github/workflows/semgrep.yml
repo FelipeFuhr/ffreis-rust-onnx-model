@@ -1,0 +1,48 @@
+name: Semgrep Code Analysis
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python (for Semgrep CLI)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Semgrep
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install semgrep
+
+      - name: Run Semgrep (SARIF)
+        run: |
+          set -euo pipefail
+          semgrep scan --config auto --sarif --output semgrep.sarif
+          test -s semgrep.sarif
+
+      - name: Upload Semgrep SARIF
+        if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif

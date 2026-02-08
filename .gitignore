@@ -1,0 +1,10 @@
+.rustc_info.json
+
+# Rust build artifacts
+target/
+app/target/
+**/*.rs.bk
+
+# Rust tooling
+.cargo/
+rustfmt.toml.bak

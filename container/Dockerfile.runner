@@ -1,0 +1,16 @@
+FROM ffreis/base-runner
+
+ARG APP_NAME=__APP_NAME__
+ENV APP_NAME=${APP_NAME}
+
+USER root
+
+WORKDIR /run
+
+COPY --chown=appuser:appgroup build/ ./
+
+RUN chmod 0750 /run/release
+
+USER appuser:appgroup
+
+ENTRYPOINT ["/run/entrypoint.sh"]

@@ -2,6 +2,11 @@
 
 A minimal guide to building Rust applications with Docker using multi-stage builds for lightweight container images.
 
+<!-- CI Badges: replace OWNER/REPO with your repo -->
+[![Docker Build](https://github.com/FelipeFuhr/ffreis-rust-onnx-model/actions/workflows/docker-build.yml/badge.svg?branch=main)](https://github.com/FelipeFuhr/ffreis-rust-onnx-model/actions/workflows/docker-build.yml)
+[![CI All](https://github.com/FelipeFuhr/ffreis-rust-onnx-model/actions/workflows/ci-all.yml/badge.svg?branch=main)](https://github.com/FelipeFuhr/ffreis-rust-onnx-model/actions/workflows/ci-all.yml)
+[![DeepSource](https://app.deepsource.com/gh/FelipeFuhr/ffreis-rust-onnx-model.svg/?label=code+coverage&show_trend=true)](https://app.deepsource.com/gh/FelipeFuhr/ffreis-rust-onnx-model/)
+
 ## What is this?
 
 This project demonstrates a **multi-stage Docker build** that:
@@ -10,45 +15,80 @@ This project demonstrates a **multi-stage Docker build** that:
 
 ## Quick Start
 
-### Build the image
+### Build all images
 ```bash
-make build
-```
-Or manually:
-```bash
-docker build -f container/Dockerfile -t ffreis-model .
+make build-images
 ```
 
-### Run the container
+### Build only the builder (default)
 ```bash
-docker run ffreis-model
+make build-builder
+```
+
+### Run the builder and populate `./build`
+```bash
+make run-builder
+```
+
+### Run the app container
+```bash
+docker run ffreis/runner
 ```
 
 ## How it works
 
-The **Dockerfile** has two stages:
+This project uses an **incremental multi-image approach** to optimize build times and image sizes:
 
-**Builder Stage**: 
-- Starts with `ubuntu:26.04`
-- Installs Rust and build tools (gcc, curl, ca-certificates)
-- Compiles your Rust app in release mode
+**Image Layers:**
+1. **Base (`ffreis/base`)**: Lightweight Ubuntu 26.04 base image
+2. **Base Builder (`ffreis/base-builder`)**: Adds Rust and build tools to the base
+3. **Builder (`ffreis/builder`)**: Copies your app source and compiles in release mode
+4. **Base Runner (`ffreis/base-runner`)**: Alternative minimal runtime base
+5. **Runner (`ffreis/runner`)**: Copies only the compiled binary, ready to execute
 
-**Runtime Stage**:
-- Starts fresh with `ubuntu:26.04`
-- Copies **only** the compiled binary from the builder
-- Runs the binary
+**Benefits:**
+- **Layer caching**: Rebuild only changed layers; base images rarely change
+- **Reusable base**: Common `ffreis/base` for multiple projects
+- **Minimal final images**: Runtime contains only the binary, not source or tools
+- **Efficient builds**: Parallel dependency installation and compilation
 
 ## Available Commands
 
+### Build targets
 ```bash
-make build              # Build the Docker image
-make clean              # Remove the Docker image
-make get-rust           # Download rustup installer script
+make build-base              # Build base Ubuntu image
+make build-base-builder      # Build base image with Rust
+make build-builder           # Build builder with app source (default)
+make build-base-runner       # Build minimal runner base
+make build-runner            # Build final runner image with binary
+make build-images            # Build all images at once
 ```
 
-## Why multi-stage builds?
+### Run targets
+```bash
+make run-builder             # Run builder, mount ./build for output
+make run-app                 # Run the compiled app in runner container
+```
 
-- **Smaller images**: Only runtime dependencies in final image
-- **Faster deployments**: Less data to push/pull
-- **Cleaner separation**: Build environment != runtime environment
-- **Security**: Reduces attack surface by removing compilers and dev tools
+### Cleanup targets
+```bash
+make clean-base              # Remove base image
+make clean-base-builder      # Remove base-builder image
+make clean-base-runner       # Remove base-runner image
+make clean-runner            # Remove runner image
+make clean-all               # Remove all images
+```
+
+### Utilities
+```bash
+make get-rust                # Download rustup installer script
+```
+
+## Why this approach?
+
+- **Incremental builds**: Cache base images separately; only rebuild changed layers
+- **Smaller final images**: Runtime excludes all build tools and source code
+- **Reusable components**: Share `ffreis/base` and Rust builder across projects
+- **Faster CI/CD**: Docker layer caching speeds up repeated builds
+- **Security**: Minimize attack surface by shipping only compiled binaries
+- **Flexibility**: Choose between base images or swap runners easily

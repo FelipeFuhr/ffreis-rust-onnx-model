@@ -1,0 +1,67 @@
+name: Code Review (Lint + Test)
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (fmt + clippy)
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+          components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        with:
+          workspaces: |
+            app -> target
+
+      - name: Lint
+        run: |
+          set -euo pipefail
+          make -C app lint
+
+      - name: Install cargo-llvm-cov
+        run: |
+          set -euo pipefail
+          cargo install cargo-llvm-cov --locked
+
+      - name: Install Python deps for coverage
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install defusedxml
+
+      - name: Build (Makefile)
+        run: |
+          set -euo pipefail
+          make -C app build
+
+      - name: Test (Makefile)
+        run: |
+          set -euo pipefail
+          make -C app test
+
+      - name: Coverage threshold
+        run: |
+          set -euo pipefail
+          make -C app coverage-check

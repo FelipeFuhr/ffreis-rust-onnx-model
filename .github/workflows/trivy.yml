@@ -1,0 +1,64 @@
+name: Container Vulnerability Scan (Trivy)
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Podman
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y podman
+      - name: Build images
+        run: |
+          set -euo pipefail
+          CONTAINER_COMMAND=podman make build
+      - name: Install Trivy
+        run: |
+          set -euo pipefail
+          curl -sfL \
+            --proto '=https' \
+            --proto-redir '=https' \
+            https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
+          trivy --version
+      - name: Save images and scan
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts trivy-results
+          images=(ffreis/base ffreis/base-builder ffreis/builder ffreis/base-runner ffreis/runner)
+          for image in "${images[@]}"; do
+            name="${image##*/}"
+            tar="artifacts/${name}.tar"
+            podman save -o "$tar" "$image"
+            test -s "$tar"
+            trivy image --input "$tar" --exit-code 1 --format sarif --output "trivy-results/${name}.sarif"
+            test -s "trivy-results/${name}.sarif"
+          done
+      - name: Upload Trivy SARIF (per image)
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in trivy-results/*.sarif; do
+            name="$(basename "$f" .sarif)"
+            echo "Uploading $f as category trivy-$name"
+            echo "SARIF_FILE=$f" >> $GITHUB_ENV
+            echo "SARIF_CATEGORY=trivy-$name" >> $GITHUB_ENV
+            # run one at a time by calling the action in separate steps is awkward
+          done

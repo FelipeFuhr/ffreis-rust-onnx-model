@@ -1,0 +1,61 @@
+name: Code Security (Cargo Audit)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deps-security:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assert Rust workspace exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f Cargo.toml ]; then
+            echo "Expected Rust workspace in ./app, but ./app/Cargo.toml was not found."
+            echo "Repo root contents:"
+            ls -la ..
+            echo "app/ contents (if any):"
+            ls -la . || true
+            exit 1
+          fi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        with:
+          workspaces: |
+            app -> target
+
+      - name: cargo-audit
+        run: |
+          set -euo pipefail
+          cargo install cargo-audit --locked
+          cargo audit
