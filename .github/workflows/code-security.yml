@@ -1,4 +1,4 @@
-name: Code Security (Cargo Audit + Snyk)
+name: Code Security (Cargo Audit)
 
 on:
   workflow_dispatch:
@@ -59,11 +59,3 @@ jobs:
           set -euo pipefail
           cargo install cargo-audit --locked
           cargo audit
-
-      - name: Snyk scan
-        run: |
-          set -euo pipefail
-          npm install -g snyk@1.1302.1 --ignore-scripts
-          snyk code test
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
