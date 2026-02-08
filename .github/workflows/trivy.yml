@@ -1,0 +1,17 @@
+name: trivy-image-scan
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build container
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}:latest .
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@v1
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:latest

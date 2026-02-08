@@ -1,0 +1,28 @@
+pre-commit:
+  parallel: true
+  commands:
+
+    rustfmt:
+      glob: "app/**/*.rs"
+      run: make -C app fmt
+
+    lint:
+      glob: "app/**/*.rs"
+      run: make -C app lint
+
+    hygiene:
+      glob: "*"
+      run: |
+        bash -c '
+          if grep -R "<<<<<<<\|=======\|>>>>>>>" -n .; then
+            echo "Merge conflict markers found"
+            exit 1
+          fi
+        '
+
+pre-push:
+  parallel: false
+  commands:
+
+    tests:
+      run: make -C app test

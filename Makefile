@@ -1,5 +1,11 @@
+.DEFAULT_GOAL := help
+
+# Setup
+SHELL := /usr/bin/env bash
+CARGO ?= cargo
+CONTAINER_COMMAND := podman
+
 # Image names
-CONTAINER_COMMAND := docker
 PREFIX:=ffreis
 BASE_DIR := .
 CONTAINER_DIR := container
@@ -17,8 +23,12 @@ APP_NAME=$(shell grep '^name' app/Cargo.toml | sed 's/name[[:space:]]*=[[:space:
 BASE_IMAGE_VALUE=$(shell grep '^BASE_IMAGE=' $(CONTAINER_DIR)/digests.env | cut -d= -f2)
 BASE_DIGEST_VALUE=$(shell grep '^BASE_DIGEST=' $(CONTAINER_DIR)/digests.env | cut -d= -f2)
 
+.PHONY: help
+help: ## Show help
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
 .PHONY: all
-all: build-builder
+all: lint build run coverage
 
 .PHONY: get-rust
 get-rust:
@@ -54,7 +64,7 @@ build-images: get-rust build-base build-base-builder build-builder build-base-ru
 
 .PHONY: run-builder
 run-builder:
-	docker run --rm \
+	$(CONTAINER_COMMAND) run --rm \
 		-v $(PWD)/build:/build/target/release \
 		-v $(PWD)/app:/build \
 		$(BUILDER_IMAGE)
@@ -63,10 +73,48 @@ build: build-images run-builder
 
 .PHONY: run-app
 run-app:
-	docker run $(RUNNER_IMAGE)
+	$(CONTAINER_COMMAND) run $(RUNNER_IMAGE)
 
 .PHONY: run
 run: run-app
+
+.PHONY: fmt
+fmt:
+	cargo fmt --all
+
+.PHONY: fmt-check
+fmt-check:
+	cargo fmt --all -- --check
+
+.PHONY: clippy
+clippy:
+	cargo clippy --all-targets --all-features
+
+.PHONY: test
+test:
+	cargo test --verbose
+
+.PHONY: lint
+lint: fmt-check clippy
+
+.PHONY: coverage
+coverage: ## Generate coverage report (Cobertura XML) into ./coverage/
+	@command -v cargo-llvm-cov >/dev/null 2>&1 || { \
+		echo "cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov --locked"; \
+		exit 1; \
+	}
+	mkdir -p coverage
+	cargo llvm-cov --all-features --cobertura --output-path coverage/cobertura.xml
+
+.PHONY: clean-app
+clean-app:
+	$(CARGO) clean || true
+	rm -rf app/target
+
+.PHONY: clean-repo
+clean-repo: clean-app
+	rm -rf build coverage
+	rm -f scripts/install-rust.sh
 
 .PHONY: clean-base
 clean-base:
@@ -89,4 +137,5 @@ clean-runner:
 	$(CONTAINER_COMMAND) rmi $(RUNNER_IMAGE) || true
 
 .PHONY: clean-all
-clean-all: clean-base clean-base-builder clean-builder clean-base-runner clean-runner
+clean-all: clean-app clean-repo clean-base clean-base-builder clean-builder clean-base-runner clean-runner
+

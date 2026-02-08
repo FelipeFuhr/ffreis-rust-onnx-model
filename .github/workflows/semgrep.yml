@@ -1,0 +1,13 @@
+name: semgrep
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: returntocorp/semgrep-action@v2
+        with:
+          config: "auto"

@@ -1,0 +1,55 @@
+name: grype-image-scan
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: local/app:${{ github.sha }}
+
+jobs:
+  grype:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (local)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: ${{ env.IMAGE_NAME }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Grype scan (SARIF)
+        uses: anchore/scan-action@v7.2.2
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          fail-build: false
+          severity-cutoff: high
+          output-format: sarif
+          output-file: grype.sarif
+
+      - name: Upload Grype SARIF
+        if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) }}
+        permissions:
+          security-events: write
+          contents: read
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: grype.sarif
