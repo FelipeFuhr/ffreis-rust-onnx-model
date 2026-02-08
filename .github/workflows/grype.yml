@@ -73,9 +73,24 @@ jobs:
 
             test -s "$out"
           done
-      - name: Upload Grype SARIF
-        # Upload on push + workflow_dispatch always; on PR only if not from a fork
+      - name: Upload Grype SARIF (per image)
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: grype-results
+        permissions:
+          security-events: write
+          contents: read
+        run: |
+          set -euo pipefail
+          for f in grype-results/*.sarif; do
+            name="$(basename "$f" .sarif)"
+            echo "Uploading $f with category grype-$name"
+
+            gh api \
+              -X POST \
+              /repos/${{ github.repository }}/code-scanning/sarifs \
+              -f sarif="@${f}" \
+              -f category="grype-${name}" \
+              -f commit_sha="${{ github.sha }}" \
+              -f ref="${{ github.ref }}"
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
