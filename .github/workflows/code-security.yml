@@ -1,4 +1,4 @@
-name: Code Security (Cargo Audit + Snyk) 
+name: Code Security (Cargo Audit + Snyk)
 
 on:
   workflow_dispatch:
@@ -19,6 +19,7 @@ concurrency:
 jobs:
   deps-security:
     runs-on: ubuntu-latest
+
     defaults:
       run:
         shell: bash
@@ -26,6 +27,21 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assert Rust workspace exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f Cargo.toml ]; then
+            echo "Expected Rust workspace in ./app, but ./app/Cargo.toml was not found."
+            echo "Repo root contents:"
+            ls -la ..
+            echo "app/ contents (if any):"
+            ls -la . || true
+            exit 1
+          fi
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@v1
@@ -48,7 +64,6 @@ jobs:
         run: |
           set -euo pipefail
           npm install -g snyk
-          cd app
           snyk test --file=Cargo.toml
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

@@ -49,7 +49,10 @@ jobs:
             podman save -o "$tar" "$image"
             test -s "$tar"
 
-            ./bin/grype "$tar" -o sarif -f "grype-results/${name}.sarif"
+            ./bin/grype "$tar" \
+              -o sarif \
+              -f "grype-results/${name}.sarif" \
+              --fail-on high
             test -s "grype-results/${name}.sarif"
           done
 
