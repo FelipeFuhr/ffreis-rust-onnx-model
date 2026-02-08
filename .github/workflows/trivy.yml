@@ -50,24 +50,6 @@ jobs:
             trivy image --input "$tar" --exit-code 1 --format sarif --output "trivy-results/${name}.sarif"
             test -s "trivy-results/${name}.sarif"
           done
-      - name: Upload Trivy SARIF to GitHub Security
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
-        run: |
-          set -euo pipefail
-          for f in trivy-results/*.sarif; do
-            name="$(basename "$f" .sarif)"
-            echo "Uploading $f with category trivy-$name"
-
-            gh api \
-              -X POST \
-              /repos/${{ github.repository }}/code-scanning/sarifs \
-              -f sarif="@${f}" \
-              -f category="trivy-${name}" \
-              -f commit_sha="${{ github.sha }}" \
-              -f ref="${{ github.ref }}"
-          done
-        env:
-          GH_TOKEN: ${{ github.token }}
       - name: Upload Trivy SARIF (per image)
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         shell: bash
