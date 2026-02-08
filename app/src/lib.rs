@@ -21,7 +21,7 @@ pub fn clamp(n: i32, min: i32, max: i32) -> i32 {
 }
 
 pub fn repeat_word(word: &str, times: usize) -> String {
-    std::iter::repeat_n(word, times)
+    std::iter::repeat(word).take(times)
         .collect::<Vec<_>>()
         .join(" ")
 }
