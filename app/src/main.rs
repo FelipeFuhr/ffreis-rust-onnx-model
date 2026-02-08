@@ -4,7 +4,7 @@ fn main() {
 
 #[cfg(test)]
 mod main_tests {
-    use crate::add;
+    use app::add;
 
     #[test]
     fn sanity() {
