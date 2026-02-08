@@ -1,7 +1,5 @@
 FROM ffreis/base
 
-ENV DEBIAN_FRONTEND=noninteractive
-
 COPY scripts/install-rust.sh /tmp/install-rust.sh
 
 RUN apt-get update && \

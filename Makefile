@@ -13,6 +13,10 @@ RUNNER_IMAGE:=$(PREFIX)/runner
 # Extract app name from Cargo.toml
 APP_NAME=$(shell grep '^name' app/Cargo.toml | sed 's/name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/')
 
+# Extract digests from digests.env
+BASE_IMAGE_VALUE=$(shell grep '^BASE_IMAGE=' $(CONTAINER_DIR)/digests.env | cut -d= -f2)
+BASE_DIGEST_VALUE=$(shell grep '^BASE_DIGEST=' $(CONTAINER_DIR)/digests.env | cut -d= -f2)
+
 .PHONY: all
 all: build-builder
 
@@ -23,8 +27,8 @@ get-rust:
 .PHONY: build-base
 build-base:
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base -t $(BASE_IMAGE) . \
-  		--build-arg UBUNTU_TAG=$(grep UBUNTU_TAG $(CONTAINER_DIR)/digests.env | cut -d= -f2)
-  		--build-arg UBUNTU_DIGEST=$(grep UBUNTU_DIGEST $(CONTAINER_DIR)/digests.env | cut -d= -f2)
+		--build-arg BASE_IMAGE=$(BASE_IMAGE_VALUE) \
+		--build-arg BASE_DIGEST=$(BASE_DIGEST_VALUE)
 
 .PHONY: build-base-builder
 build-base-builder:
@@ -36,16 +40,17 @@ build-builder: build-base build-base-builder
 
 .PHONY: build-base-runner
 build-base-runner:
-	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base-runner -t $(BASE_RUNNER_IMAGE) .
+	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base-runner -t $(BASE_RUNNER_IMAGE) . \
+		--build-arg APP_NAME=$(APP_NAME)
 
 .PHONY: build-runner
 build-runner:
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.runner -t $(RUNNER_IMAGE) . \
-  		--build-arg BASE_IMAGE_DIGEST=$(grep BASE_IMAGE_DIGEST digests.env | cut -d= -f2)
+		--build-arg APP_NAME=$(APP_NAME)
 
 # Build everything (may be slow)
 .PHONY: build-images
-build-images: build-base build-base-builder build-builder build-base-runner build-runner
+build-images: get-rust build-base build-base-builder build-builder build-base-runner build-runner
 
 .PHONY: run-builder
 run-builder:
@@ -54,9 +59,14 @@ run-builder:
 		-v $(PWD)/app:/build \
 		$(BUILDER_IMAGE)
 
+build: build-images run-builder
+
 .PHONY: run-app
 run-app:
-	docker run -d $(RUNNER_IMAGE)
+	docker run $(RUNNER_IMAGE)
+
+.PHONY: run
+run: run-app
 
 .PHONY: clean-base
 clean-base:
@@ -65,6 +75,10 @@ clean-base:
 .PHONY: clean-base-builder
 clean-base-builder:
 	$(CONTAINER_COMMAND) rmi $(BASE_BUILDER_IMAGE) || true
+
+.PHONY: clean-builder
+clean-builder:
+	$(CONTAINER_COMMAND) rmi $(BUILDER_IMAGE) || true
 
 .PHONY: clean-base-runner
 clean-base-runner:

@@ -1,6 +1,8 @@
+ARG APP_NAME=__APP_NAME__
+
 FROM ffreis/base
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-COPY build /run
 WORKDIR /run
+
+COPY build/${APP_NAME} ${APP_NAME}
+COPY scripts/entrypoint.sh entrypoint.sh

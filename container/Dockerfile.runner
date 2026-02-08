@@ -1,7 +1,6 @@
-ARG APP_NAME="app"
-
 FROM ffreis/base-runner
 
-ENV DEBIAN_FRONTEND=noninteractive
+ARG APP_NAME=__APP_NAME__
+ENV APP_NAME=${APP_NAME}
 
-ENTRYPOINT [${APP_NAME}]
+ENTRYPOINT ["/run/entrypoint.sh"]
