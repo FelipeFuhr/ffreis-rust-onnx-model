@@ -9,20 +9,6 @@ on:
 jobs:
   image-scan:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        image:
-          - ffreis/base
-          - ffreis/base-builder
-          - ffreis/builder
-          - ffreis/base-runner
-          - ffreis/runner
-        tar:
-          - base.tar
-          - base-builder.tar
-          - builder.tar
-          - base-runner.tar
-          - runner.tar
     steps:
       - uses: actions/checkout@v4
       - name: Install Podman
@@ -34,14 +20,21 @@ jobs:
         run: |
           set -euo pipefail
           CONTAINER_COMMAND=podman make build
-      - name: Save image tar
+      - name: Install Trivy
         run: |
           set -euo pipefail
-          mkdir -p artifacts
-          podman save -o "artifacts/${{ matrix.tar }}" "${{ matrix.image }}"
-          test -s "artifacts/${{ matrix.tar }}"
-      - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@v1
-        with:
-          input: artifacts/${{ matrix.tar }}
-          exit-code: '1'
+          sudo apt-get install -y trivy
+          trivy --version
+      - name: Save images and scan
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts trivy-results
+          images=(ffreis/base ffreis/base-builder ffreis/builder ffreis/base-runner ffreis/runner)
+          for image in "${images[@]}"; do
+            name="${image##*/}"
+            tar="artifacts/${name}.tar"
+            podman save -o "$tar" "$image"
+            test -s "$tar"
+            trivy image --input "$tar" --exit-code 1 --format sarif --output "trivy-results/${name}.sarif"
+            test -s "trivy-results/${name}.sarif"
+          done
