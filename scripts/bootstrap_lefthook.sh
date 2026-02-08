@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-set -euo pipefail
+set -eu
 
 LEFTHOOK_VERSION="${LEFTHOOK_VERSION:-1.7.10}"
 BIN_DIR="${BIN_DIR:-.bin}"
@@ -7,7 +7,7 @@ BIN="$BIN_DIR/lefthook"
 
 mkdir -p "$BIN_DIR"
 
-if [[ ! -x "$BIN" ]]; then
+if [ ! -x "$BIN" ]; then
   echo "Downloading lefthook v$LEFTHOOK_VERSION ..."
 
   OS="$(uname -s)"
@@ -16,13 +16,19 @@ if [[ ! -x "$BIN" ]]; then
   case "$OS" in
     Linux)  OS=Linux ;;
     Darwin) OS=Darwin ;;
-    *) echo "Unsupported OS: $OS" >&2; exit 2 ;;
+    *)
+      echo "Unsupported OS: $OS" >&2
+      exit 2
+      ;;
   esac
 
   case "$ARCH" in
     x86_64|amd64) ARCH=x86_64 ;;
     aarch64|arm64) ARCH=arm64 ;;
-    *) echo "Unsupported arch: $ARCH" >&2; exit 2 ;;
+    *)
+      echo "Unsupported arch: $ARCH" >&2
+      exit 2
+      ;;
   esac
 
   URL="https://github.com/evilmartians/lefthook/releases/download/v${LEFTHOOK_VERSION}/lefthook_${LEFTHOOK_VERSION}_${OS}_${ARCH}"
@@ -30,3 +36,7 @@ if [[ ! -x "$BIN" ]]; then
   curl -fsSL "$URL" -o "$BIN"
   chmod +x "$BIN"
 fi
+
+echo "Running lefthook hooks..."
+"$BIN" run pre-commit
+"$BIN" run pre-push
