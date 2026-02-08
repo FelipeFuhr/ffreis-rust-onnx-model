@@ -3,3 +3,4 @@ FROM ffreis/base
 WORKDIR /run
 
 COPY scripts/entrypoint.sh entrypoint.sh
+RUN chmod +x /run/entrypoint.sh
