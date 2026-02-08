@@ -3,14 +3,13 @@ FROM ffreis/base-runner
 ARG APP_NAME=__APP_NAME__
 ENV APP_NAME=${APP_NAME}
 
-RUN getent group appgroup >/dev/null || groupadd -g 10001 appgroup \
-    && id -u appuser >/dev/null 2>&1 || useradd -u 10001 -g appgroup -m -s /usr/sbin/nologin appuser
+USER root
 
 WORKDIR /run
 
-COPY build/${APP_NAME} ${APP_NAME}
+COPY --chown=appuser:appgroup build/${APP_NAME} ${APP_NAME}
 
-RUN chown -R appuser:appgroup /run
+RUN chmod 0750 /run/${APP_NAME}
 
 USER appuser:appgroup
 

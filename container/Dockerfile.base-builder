@@ -13,10 +13,15 @@ RUN apt-get update && \
     ca-certificates \
     gcc \
     libc6-dev && \
-    sh /tmp/install-rust.sh -y && \
-    rm /tmp/install-rust.sh && \
     rm -rf /var/lib/apt/lists/*
 
-ENV PATH=/root/.cargo/bin:$PATH
+ENV CARGO_HOME=/home/appuser/.cargo
+ENV RUSTUP_HOME=/home/appuser/.rustup
+ENV PATH=/home/appuser/.cargo/bin:$PATH
+
+RUN chown appuser:appgroup /tmp/install-rust.sh
 
 USER appuser:appgroup
+
+RUN sh /tmp/install-rust.sh -y && \
+    rm /tmp/install-rust.sh

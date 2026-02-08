@@ -117,10 +117,11 @@ build-images: get-rust build-base build-base-builder build-builder build-base-ru
 .PHONY: run-builder
 run-builder: build-builder ## Run builder container to produce release artifact
 	$(CONTAINER_COMMAND) run --rm \
-		-e CARGO_TARGET_DIR=/build/target \
-		-v "$(CURDIR)/build:/build/target" \
-		-v "$(CURDIR)/app:/build" \
-		$(BUILDER_IMAGE)
+	--user "$(id -u):$(id -g)" \
+	-e CARGO_TARGET_DIR=/build/target \
+	-v "$(CURDIR)/build:/build/target" \
+	-v "$(CURDIR)/app:/build" \
+	ffreis/builder
 
 .PHONY: build
 build: build-images run-builder build-runner ## Build everything (images + app artifact + runner)
