@@ -2,6 +2,9 @@ FROM ffreis/base
 
 COPY scripts/install-rust.sh /tmp/install-rust.sh
 
+RUN groupadd -g 10001 appgroup \
+    && useradd -u 10001 -g appgroup -m -s /usr/sbin/nologin appuser
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
@@ -13,3 +16,5 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PATH=/root/.cargo/bin:$PATH
+
+USER appuser:appgroup

@@ -23,7 +23,10 @@ jobs:
       - name: Install Trivy
         run: |
           set -euo pipefail
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+          curl -sfL \
+            --proto '=https' \
+            --proto-redir '=https' \
+            https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
             | sudo sh -s -- -b /usr/local/bin
           trivy --version
       - name: Save images and scan

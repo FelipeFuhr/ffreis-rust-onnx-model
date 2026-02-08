@@ -33,7 +33,10 @@ if [ ! -x "$BIN" ]; then
 
   URL="https://github.com/evilmartians/lefthook/releases/download/v${LEFTHOOK_VERSION}/lefthook_${LEFTHOOK_VERSION}_${OS}_${ARCH}"
 
-  curl -fsSL "$URL" -o "$BIN"
+  curl --fail --show-error --silent --location \
+     --proto '=https' \
+     --tlsv1.2 \
+     "$URL" -o "$BIN"
   chmod +x "$BIN"
 fi
 

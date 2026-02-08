@@ -1,5 +1,12 @@
 FROM ffreis/base
 
+RUN groupadd -g 10001 appgroup \
+    && useradd -u 10001 -g appgroup -m -s /usr/sbin/nologin appuser
+
 WORKDIR /run
 
 COPY scripts/entrypoint.sh entrypoint.sh
+
+RUN chown -R appuser:appgroup /run
+
+USER appuser:appgroup

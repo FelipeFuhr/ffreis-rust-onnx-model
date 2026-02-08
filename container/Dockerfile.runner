@@ -3,8 +3,15 @@ FROM ffreis/base-runner
 ARG APP_NAME=__APP_NAME__
 ENV APP_NAME=${APP_NAME}
 
+RUN groupadd -g 10001 appgroup \
+    && useradd -u 10001 -g appgroup -m -s /usr/sbin/nologin appuser
+
 WORKDIR /run
 
 COPY build/${APP_NAME} ${APP_NAME}
+
+RUN chown -R appuser:appgroup /run
+
+USER appuser:appgroup
 
 ENTRYPOINT ["/run/entrypoint.sh"]
