@@ -35,14 +35,19 @@ jobs:
             app -> target
 
       - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov --locked
+        run: |
+          set -euo pipefail
+          cargo install cargo-llvm-cov --locked
 
       - name: Generate coverage (Makefile)
-        run: make -C app coverage
+        run: |
+          set -euo pipefail
+          make -C app coverage
+          test -s app/coverage/cobertura.xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
           files: ./app/coverage/cobertura.xml
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           verbose: true

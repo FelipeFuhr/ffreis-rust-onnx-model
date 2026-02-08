@@ -16,7 +16,6 @@ concurrency:
 jobs:
   deps-security:
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         shell: bash
@@ -38,6 +37,7 @@ jobs:
 
       - name: cargo-audit
         run: |
+          set -euo pipefail
           cargo install cargo-audit --locked
           cargo audit
 

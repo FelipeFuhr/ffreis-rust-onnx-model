@@ -27,12 +27,15 @@ jobs:
 
       - name: Install Semgrep
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install semgrep
 
       - name: Run Semgrep (SARIF)
         run: |
+          set -euo pipefail
           semgrep scan --config auto --sarif --output semgrep.sarif
+          test -s semgrep.sarif
 
       - name: Upload Semgrep SARIF
         if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) }}

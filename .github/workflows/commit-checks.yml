@@ -28,4 +28,6 @@ jobs:
         with:
           toolchain: stable
       - name: Commit Checks (Lefthook) 
-        run: make lefthook
+        run: |
+          set -euo pipefail
+          make lefthook

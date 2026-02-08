@@ -36,16 +36,26 @@ jobs:
             app -> target
 
       - name: Lint
-        run: make -C app lint
+        run: |
+          set -euo pipefail
+          make -C app lint
 
       - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov --locked
+        run: |
+          set -euo pipefail
+          cargo install cargo-llvm-cov --locked
 
       - name: Build (Makefile)
-        run: make -C app build
+        run: |
+          set -euo pipefail
+          make -C app build
 
       - name: Test (Makefile)
-        run: make -C app test
+        run: |
+          set -euo pipefail
+          make -C app test
 
       - name: Coverage threshold
-        run: make -C app coverage-check
+        run: |
+          set -euo pipefail
+          make -C app coverage-check

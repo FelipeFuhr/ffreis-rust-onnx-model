@@ -21,10 +21,12 @@ jobs:
           toolchain: ${{ matrix.rust }}
       - name: Build
         run: |
+          set -euo pipefail
           cd app
           cargo build --release
       - name: Test
         run: |
+          set -euo pipefail
           cd app
           cargo test --release
 
@@ -35,4 +37,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build images
         run: |
+          set -euo pipefail
           make build

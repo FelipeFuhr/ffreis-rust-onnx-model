@@ -6,12 +6,39 @@ on:
 jobs:
   image-scan:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image:
+          - ffreis/base
+          - ffreis/base-builder
+          - ffreis/builder
+          - ffreis/base-runner
+          - ffreis/runner
+        tar:
+          - base.tar
+          - base-builder.tar
+          - builder.tar
+          - base-runner.tar
+          - runner.tar
     steps:
       - uses: actions/checkout@v4
-      - name: Build container
+      - name: Install Podman
         run: |
-          docker build -t ghcr.io/${{ github.repository }}:latest .
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y podman
+      - name: Build images
+        run: |
+          set -euo pipefail
+          CONTAINER_COMMAND=podman make build
+      - name: Save image tar
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          podman save -o "artifacts/${{ matrix.tar }}" "${{ matrix.image }}"
+          test -s "artifacts/${{ matrix.tar }}"
       - name: Scan with Trivy
         uses: aquasecurity/trivy-action@v1
         with:
-          image-ref: ghcr.io/${{ github.repository }}:latest
+          input: artifacts/${{ matrix.tar }}
+          exit-code: '1'
