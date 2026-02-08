@@ -25,3 +25,15 @@ pub fn repeat_word(word: &str, times: usize) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
+
+pub fn sum(nums: &[i32]) -> i32 {
+    nums.iter().copied().sum()
+}
+
+pub fn first_non_empty<'a>(values: &'a [&'a str]) -> Option<&'a str> {
+    values.iter().copied().find(|v| !v.is_empty())
+}
+
+pub fn toggle(flag: bool) -> bool {
+    !flag
+}

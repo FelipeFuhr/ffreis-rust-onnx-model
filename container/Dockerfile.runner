@@ -7,9 +7,9 @@ USER root
 
 WORKDIR /run
 
-COPY --chown=appuser:appgroup build/${APP_NAME} ${APP_NAME}
+COPY --chown=appuser:appgroup build/ ./
 
-RUN chmod 0750 /run/${APP_NAME}
+RUN chmod 0750 /run/release
 
 USER appuser:appgroup
 

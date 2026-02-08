@@ -31,6 +31,26 @@ fn repeat_word_works() {
 }
 
 #[test]
+fn sum_works() {
+    assert_eq!(app::sum(&[]), 0);
+    assert_eq!(app::sum(&[1, 2, 3]), 6);
+    assert_eq!(app::sum(&[-2, 2, 5]), 5);
+}
+
+#[test]
+fn first_non_empty_works() {
+    assert_eq!(app::first_non_empty(&["", "a", "b"]), Some("a"));
+    assert_eq!(app::first_non_empty(&["", "", "x"]), Some("x"));
+    assert_eq!(app::first_non_empty(&[""]), None);
+}
+
+#[test]
+fn toggle_works() {
+    assert!(app::toggle(false));
+    assert!(!app::toggle(true));
+}
+
+#[test]
 fn binary_runs() {
     let exe = match std::env::var("CARGO_BIN_EXE_app") {
         Ok(path) => path,
