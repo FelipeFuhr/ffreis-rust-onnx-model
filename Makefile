@@ -112,7 +112,7 @@ build-runner: build-base-runner run-builder ## Build runner image (needs built b
 		--build-arg APP_NAME="$(APP_NAME)"
 
 .PHONY: build-images
-build-images: get-rust build-base build-base-builder build-builder build-base-runner ## Build all images (may be slow)
+build-images: get-rust build-base build-base-builder build-builder build-base-runner build-runner ## Build all images (may be slow)
 
 .PHONY: run-builder
 run-builder: build-builder ## Run builder container to produce release artifact
@@ -176,7 +176,7 @@ coverage-check: ## Fail if coverage is below COVERAGE_MIN
 
 .PHONY: lefthook-bootstrap
 lefthook-bootstrap: ## Download lefthook binary into ./.bin
-	./scripts/bootstrap_lefthook.sh
+	LEFTHOOK_VERSION="$(LEFTHOOK_VERSION)" BIN_DIR="$(LEFTHOOK_DIR)" ./scripts/bootstrap_lefthook.sh
 
 .PHONY: lefthook-install
 lefthook-install: lefthook-bootstrap ## Install git hooks if missing
@@ -184,12 +184,12 @@ lefthook-install: lefthook-bootstrap ## Install git hooks if missing
 		echo "lefthook hooks already installed"; \
 		exit 0; \
 	fi
-	"$(LEFTHOOK_BIN)" install
+	LEFTHOOK="$(LEFTHOOK_BIN)" "$(LEFTHOOK_BIN)" install
 
 .PHONY: lefthook-run
 lefthook-run: lefthook-bootstrap ## Run hooks (pre-commit + pre-push)
-	"$(LEFTHOOK_BIN)" run pre-commit
-	"$(LEFTHOOK_BIN)" run pre-push
+	LEFTHOOK="$(LEFTHOOK_BIN)" "$(LEFTHOOK_BIN)" run pre-commit
+	LEFTHOOK="$(LEFTHOOK_BIN)" "$(LEFTHOOK_BIN)" run pre-push
 
 .PHONY: lefthook
 lefthook: lefthook-bootstrap lefthook-install lefthook-run ## Install hooks and run them

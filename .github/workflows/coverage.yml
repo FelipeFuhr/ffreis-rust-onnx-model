@@ -48,6 +48,6 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: ./app/coverage/cobertura.xml
+          files: ./coverage/cobertura.xml
           fail_ci_if_error: true
           verbose: true
