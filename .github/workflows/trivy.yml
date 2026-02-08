@@ -52,9 +52,22 @@ jobs:
           done
       - name: Upload Trivy SARIF to GitHub Security
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results
+        run: |
+          set -euo pipefail
+          for f in trivy-results/*.sarif; do
+            name="$(basename "$f" .sarif)"
+            echo "Uploading $f with category trivy-$name"
+
+            gh api \
+              -X POST \
+              /repos/${{ github.repository }}/code-scanning/sarifs \
+              -f sarif="@${f}" \
+              -f category="trivy-${name}" \
+              -f commit_sha="${{ github.sha }}" \
+              -f ref="${{ github.ref }}"
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Upload Trivy SARIF as artifact
         if: always()
         uses: actions/upload-artifact@v4
