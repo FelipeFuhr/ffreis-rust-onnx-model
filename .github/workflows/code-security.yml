@@ -64,6 +64,6 @@ jobs:
         run: |
           set -euo pipefail
           npm install -g snyk@1.1290.0 --ignore-scripts
-          snyk test --file=Cargo.toml
+          snyk test --file=Cargo.toml --package-manager=cargo
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
