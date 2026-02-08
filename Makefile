@@ -41,7 +41,7 @@ build-base:
 		--build-arg BASE_DIGEST=$(BASE_DIGEST_VALUE)
 
 .PHONY: build-base-builder
-build-base-builder:
+build-base-builder: get-rust
 	$(CONTAINER_COMMAND) build -f $(CONTAINER_DIR)/Dockerfile.base-builder -t $(BASE_BUILDER_IMAGE) .
 
 .PHONY: build-builder
