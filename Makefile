@@ -4,7 +4,9 @@
 SHELL := /usr/bin/env bash
 CARGO ?= cargo
 CONTAINER_COMMAND := podman
-LEFTHOOK ?= $(or $(wildcard $(LEFTHOOK_BIN)),lefthook)
+LEFTHOOK_VERSION ?= 1.7.10
+LEFTHOOK_DIR ?= $(CURDIR)/.bin
+LEFTHOOK_BIN ?= $(LEFTHOOK_DIR)/lefthook
 
 # Image names
 PREFIX:=ffreis
@@ -111,23 +113,12 @@ coverage-check: ## Fail if coverage is below COVERAGE_MIN
 	$(MAKE) -C app coverage-check
 
 .PHONY: lefthook-bootstrap
-lefthook-bootstrap: ## Download lefthook locally into ./.bin
-	@mkdir -p .bin
-	@if [ ! -x "$(LEFTHOOK_BIN)" ]; then \
-		echo "Downloading lefthook $(LEFTHOOK_VERSION)..." ; \
-		curl -fsSL -o "$(LEFTHOOK_BIN)" \
-		  "https://github.com/evilmartians/lefthook/releases/download/v$(LEFTHOOK_VERSION)/lefthook_$(LEFTHOOK_VERSION)_Linux_x86_64"; \
-		chmod +x "$(LEFTHOOK_BIN)"; \
-	fi
+lefthook-bootstrap:
+	./scripts/bootstrap_lefthook.sh
 
 .PHONY: lefthook-install
 lefthook-install: lefthook-bootstrap
-	@if command -v lefthook >/dev/null 2>&1; then \
-		lefthook install; \
-	else \
-		echo "lefthook not found. Install it or set LEFTHOOK_BIN."; \
-		exit 1; \
-	fi
+	lefthook install;
 
 .PHONY: lefthook-run
 lefthook-run:
