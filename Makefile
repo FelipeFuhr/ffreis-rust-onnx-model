@@ -4,6 +4,7 @@
 SHELL := /usr/bin/env bash
 CARGO ?= cargo
 CONTAINER_COMMAND := podman
+LEFTHOOK_BIN ?= ./bin/lefthook
 
 # Image names
 PREFIX:=ffreis
@@ -105,6 +106,10 @@ lint: fmt-check clippy
 coverage: ## Generate coverage report (Cobertura XML) into ./coverage/
 	$(MAKE) -C app coverage
 
+.PHONY: coverage-check
+coverage-check: ## Fail if coverage is below COVERAGE_MIN
+	$(MAKE) -C app coverage-check
+
 .PHONY: clean-app
 clean-app:
 	$(MAKE) -C app clean
@@ -136,3 +141,24 @@ clean-runner:
 
 .PHONY: clean-all
 clean-all: clean-app clean-repo clean-base clean-base-builder clean-builder clean-base-runner clean-runner
+
+.PHONY: lefthook-install
+lefthook-install: ## Install lefthook hooks
+	@if [ ! -x "$(LEFTHOOK_BIN)" ]; then \
+		curl -sSfL https://raw.githubusercontent.com/evilmartians/lefthook/master/install.sh | bash; \
+	fi
+	@if [ -x "$(LEFTHOOK_BIN)" ]; then \
+		$(LEFTHOOK_BIN) install; \
+	else \
+		lefthook install; \
+	fi
+
+.PHONY: lefthook-run
+lefthook-run: ## Run lefthook (pre-commit and pre-push)
+	@if [ -x "$(LEFTHOOK_BIN)" ]; then \
+		$(LEFTHOOK_BIN) run pre-commit; \
+		$(LEFTHOOK_BIN) run pre-push; \
+	else \
+		lefthook run pre-commit; \
+		lefthook run pre-push; \
+	fi

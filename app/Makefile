@@ -3,6 +3,10 @@
 SHELL := /usr/bin/env bash
 CARGO ?= cargo
 COVERAGE_MIN ?= 90
+ROOT_DIR ?= ..
+COVERAGE_XML ?= $(ROOT_DIR)/coverage/cobertura.xml
+CHECK_COVERAGE_SCRIPT ?= $(ROOT_DIR)/scripts/check_coverage.py
+PYTHON ?= python3
 
 .PHONY: help
 help: ## Show help
@@ -38,7 +42,7 @@ coverage: ## Generate coverage report (Cobertura XML) into ../coverage/
 		exit 1; \
 	}
 	mkdir -p ../coverage
-	$(CARGO) llvm-cov --all-features --cobertura --output-path ../coverage/cobertura.xml
+	$(CARGO) llvm-cov --all-features --cobertura --output-path $(COVERAGE_XML)
 
 .PHONY: coverage-check
 coverage-check: ## Fail if coverage is below COVERAGE_MIN
@@ -47,22 +51,5 @@ coverage-check: ## Fail if coverage is below COVERAGE_MIN
 		exit 1; \
 	}
 	$(MAKE) coverage
-	python3 - <<'PY'
-import os
-import sys
-import xml.etree.ElementTree as ET
-
-min_cov = float(os.environ.get("COVERAGE_MIN", "90"))
-path = os.path.join("..", "coverage", "cobertura.xml")
-tree = ET.parse(path)
-root = tree.getroot()
-rate = float(root.attrib.get("line-rate", "0")) * 100.0
-if rate + 1e-9 < min_cov:
-    print(f"Coverage {rate:.2f}% is below minimum {min_cov:.2f}%")
-    sys.exit(1)
-print(f"Coverage {rate:.2f}% meets minimum {min_cov:.2f}%")
-PY
-
-.PHONY: clean
-clean: ## Clean build artifacts
-	$(CARGO) clean
+	@COVERAGE_MIN="$(COVERAGE_MIN)" COVERAGE_XML="$(COVERAGE_XML)" \
+		$(PYTHON) $(CHECK_COVERAGE_SCRIPT)

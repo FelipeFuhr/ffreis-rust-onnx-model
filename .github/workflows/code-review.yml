@@ -38,14 +38,20 @@ jobs:
       - name: Lint (Makefile)
         run: make -C app lint
 
+      - name: Install lefthook
+        run: make lefthook-install
+
+      - name: Run lefthook hooks
+        run: make lefthook-run
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
       - name: Build (Makefile)
         run: make -C app build
 
       - name: Test (Makefile)
         run: make -C app test
 
-      - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov --locked
-
-      - name: Coverage threshold (90%)
-        run: make -C app coverage-check
+      - name: Coverage threshold
+        run: make coverage-check
