@@ -4,8 +4,18 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "container/**"
+      - "Makefile"
+      - ".github/workflows/grype.yml"
   pull_request:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "container/**"
+      - "Makefile"
+      - ".github/workflows/grype.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

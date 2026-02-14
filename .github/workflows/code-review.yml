@@ -3,8 +3,18 @@ name: Code Review (Lint + Test)
 on:
   pull_request:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "Makefile"
+      - "rust-toolchain.toml"
+      - ".github/workflows/code-review.yml"
   push:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "Makefile"
+      - "rust-toolchain.toml"
+      - ".github/workflows/code-review.yml"
 
 permissions:
   contents: read

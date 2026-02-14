@@ -3,8 +3,20 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "container/**"
+      - ".trivyignore.yaml"
+      - "Makefile"
+      - ".github/workflows/trivy.yml"
   push:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "container/**"
+      - ".trivyignore.yaml"
+      - "Makefile"
+      - ".github/workflows/trivy.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
