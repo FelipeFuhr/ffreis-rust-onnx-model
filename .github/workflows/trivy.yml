@@ -154,15 +154,24 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
+          shopt -s nullglob
           failed=0
-          for f in trivy-results/*.gate-status; do
+          gate_files=(trivy-results/*.gate-status)
+          if [ ${#gate_files[@]} -eq 0 ]; then
+            echo "::error::No gate status files found - scans may not have completed"
+            exit 1
+          fi
+          for f in "${gate_files[@]}"; do
             name="$(basename "$f" .gate-status)"
             status="$(cat "$f")"
             if [ "$status" = "FAIL" ]; then
               echo "::error::Image ${name} failed HIGH/CRITICAL vulnerability gate"
               failed=1
-            else
+            elif [ "$status" = "PASS" ]; then
               echo "Image ${name} passed HIGH/CRITICAL vulnerability gate"
+            else
+              echo "::error::Image ${name} has unexpected gate status: ${status}"
+              failed=1
             fi
           done
           exit $failed
