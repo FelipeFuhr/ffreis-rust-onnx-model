@@ -7,7 +7,7 @@ on:
     types: [opened, synchronize, reopened]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
   sonarqube:
@@ -17,6 +17,26 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        run: |
+          set -euo pipefail
+          cargo install cargo-llvm-cov --locked
+
+      - name: Generate LCOV for Sonar
+        run: |
+          set -euo pipefail
+          mkdir -p coverage
+          cargo llvm-cov --manifest-path app/Cargo.toml --all-features --workspace --tests --bins \
+            --lcov --output-path coverage/lcov.info
+          test -s coverage/lcov.info
+
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9
         env:

@@ -121,10 +121,10 @@ run-builder: build-builder ## Run builder container to produce release artifact
 	-e CARGO_TARGET_DIR=/build/target \
 	-v "$(CURDIR)/build:/build/target" \
 	-v "$(CURDIR)/app:/build" \
-	ffreis/builder
+	$(BUILDER_IMAGE)
 
 .PHONY: build
-build: build-images run-builder build-runner ## Build everything (images + app artifact + runner)
+build: build-images ## Build everything (images + app artifact + runner)
 
 # ------------------------------------------------------------------------------
 # App (local) targets

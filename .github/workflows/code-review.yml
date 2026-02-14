@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -56,10 +56,20 @@ jobs:
           set -euo pipefail
           make -C app build
 
-      - name: Test (Makefile)
+      - name: Unit tests
         run: |
           set -euo pipefail
-          make -C app test
+          make -C app test-unit
+
+      - name: Integration tests
+        run: |
+          set -euo pipefail
+          make -C app test-integration
+
+      - name: E2E smoke tests (non-ignored)
+        run: |
+          set -euo pipefail
+          make -C app test-e2e
 
       - name: Coverage threshold
         run: |
