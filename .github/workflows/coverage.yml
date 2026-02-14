@@ -3,8 +3,18 @@ name: Code Coverage (Codecov)
 on:
   pull_request:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "Makefile"
+      - "rust-toolchain.toml"
+      - ".github/workflows/coverage.yml"
   push:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "Makefile"
+      - "rust-toolchain.toml"
+      - ".github/workflows/coverage.yml"
 
 permissions:
   contents: read

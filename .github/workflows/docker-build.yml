@@ -3,8 +3,18 @@ name: Docker Build
 on:
   push:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "container/**"
+      - "Makefile"
+      - ".github/workflows/docker-build.yml"
   pull_request:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "container/**"
+      - "Makefile"
+      - ".github/workflows/docker-build.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
