@@ -124,7 +124,7 @@ run-builder: build-builder ## Run builder container to produce release artifact
 	$(BUILDER_IMAGE)
 
 .PHONY: build
-build: build-images ## Build everything (images + app artifact + runner)
+build: build-runner ## Build everything (images + app artifact + runner)
 
 # ------------------------------------------------------------------------------
 # App (local) targets
