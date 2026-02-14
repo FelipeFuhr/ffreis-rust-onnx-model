@@ -53,7 +53,16 @@ jobs:
             cd app
             cargo cyclonedx --format json
           )
-          cp app/bom.json snyk-results/sbom.json
+          sbom_path="$(
+            find app -type f \( -name "bom.json" -o -name "*.cdx.json" -o -name "*cyclonedx*.json" \) \
+              | head -n 1
+          )"
+          if [ -z "${sbom_path}" ]; then
+            echo "No CycloneDX JSON SBOM file found under app/ after cargo cyclonedx." >&2
+            find app -maxdepth 3 -type f | sort >&2
+            exit 1
+          fi
+          cp "${sbom_path}" snyk-results/sbom.json
           test -s snyk-results/sbom.json
 
       - name: Snyk Open Source scan (SBOM)
