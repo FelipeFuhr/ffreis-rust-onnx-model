@@ -59,10 +59,11 @@ jobs:
           for f in trivy-results/*.sarif; do
             name="$(basename "$f" .sarif)"
             echo "Uploading $f with category trivy-$name"
+            sarif_payload="$(gzip -c "$f" | base64 | tr -d '\n')"
             gh api \
               -X POST \
               /repos/${{ github.repository }}/code-scanning/sarifs \
-              -f sarif="@${f}" \
+              -f sarif="${sarif_payload}" \
               -f tool_name="trivy-${name}" \
               -f commit_sha="${{ github.sha }}" \
               -f ref="${{ github.ref }}"
