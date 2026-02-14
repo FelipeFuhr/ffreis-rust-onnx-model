@@ -1,0 +1,73 @@
+name: Security Scan (Snyk)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: "0 10 * * 1" # Mondays 10:00 UTC
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  snyk:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+
+      - name: Setup Node.js (for Snyk CLI)
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Snyk CLI
+        run: |
+          set -euo pipefail
+          npm install -g snyk
+          snyk --version
+
+      - name: Snyk Open Source scan (Cargo)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p snyk-results
+          snyk test \
+            --file=app/Cargo.toml \
+            --package-manager=cargo \
+            --sarif-file-output=snyk-results/oss.sarif || true
+          test -s snyk-results/oss.sarif
+
+      - name: Snyk Code scan
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          snyk code test --sarif-file-output=snyk-results/code.sarif || true
+          test -s snyk-results/code.sarif
+
+      - name: Upload Snyk OSS SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: snyk-results/oss.sarif
+          category: snyk-oss
+
+      - name: Upload Snyk Code SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: snyk-results/code.sarif
+          category: snyk-code
