@@ -95,9 +95,10 @@ jobs:
               --format table \
               "$image"
 
-            # 3) Enforce policy: fail only when HIGH/CRITICAL vulnerabilities exist.
+            # 3) Check for HIGH/CRITICAL vulnerabilities but capture exit status
+            # instead of failing immediately so reports can be uploaded.
             echo "Gating ${image} on HIGH/CRITICAL vulnerabilities..."
-            trivy image \
+            if ! trivy image \
               --image-src podman \
               --skip-db-update \
               --no-progress \
@@ -107,7 +108,11 @@ jobs:
               --ignore-unfixed \
               --exit-code 1 \
               --format table \
-              "$image"
+              "$image"; then
+              echo "FAIL" > "trivy-results/${name}.gate-status"
+            else
+              echo "PASS" > "trivy-results/${name}.gate-status"
+            fi
           }
 
           pids=()
@@ -120,13 +125,14 @@ jobs:
             wait "$pid"
           done
       - name: Upload Trivy JSON reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: trivy-json-reports
           path: trivy-results/*.json
           if-no-files-found: error
       - name: Upload Trivy SARIF (per image)
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         shell: bash
         run: |
           set -euo pipefail
@@ -144,3 +150,19 @@ jobs:
           done
         env:
           GH_TOKEN: ${{ github.token }}
+      - name: Check gate results
+        if: always()
+        run: |
+          set -euo pipefail
+          failed=0
+          for f in trivy-results/*.gate-status; do
+            name="$(basename "$f" .gate-status)"
+            status="$(cat "$f")"
+            if [ "$status" = "FAIL" ]; then
+              echo "::error::Image ${name} failed HIGH/CRITICAL vulnerability gate"
+              failed=1
+            else
+              echo "Image ${name} passed HIGH/CRITICAL vulnerability gate"
+            fi
+          done
+          exit $failed
