@@ -53,7 +53,7 @@ jobs:
       - name: Save images and scan (parallel, Podman)
         run: |
           set -euo pipefail
-          mkdir -p artifacts trivy-results
+          mkdir -p trivy-results
           images=(ffreis/base ffreis/base-builder ffreis/builder ffreis/base-runner ffreis/runner)
 
           # Warm DB once to avoid duplicate updates and lock contention in parallel scans.
@@ -69,7 +69,7 @@ jobs:
             # 1) Always produce SARIF for all severities so GitHub code scanning
             # has complete visibility, regardless of pass/fail gate outcome.
             trivy image \
-              --input "$tar" \
+              --image-src podman \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -78,12 +78,13 @@ jobs:
               --ignore-unfixed \
               --exit-code 0 \
               --format sarif \
-              --output "trivy-results/${name}.sarif"
+              --output "trivy-results/${name}.sarif" \
+              "$image"
             test -s "trivy-results/${name}.sarif"
 
             # 1b) Export JSON for trend analysis and triage automation.
             trivy image \
-              --input "$tar" \
+              --image-src podman \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -92,13 +93,14 @@ jobs:
               --ignore-unfixed \
               --exit-code 0 \
               --format json \
-              --output "trivy-results/${name}.json"
+              --output "trivy-results/${name}.json" \
+              "$image"
             test -s "trivy-results/${name}.json"
 
             # 2) Print a human-readable full report in CI logs (all severities).
             echo "Full vulnerability report for ${image} (all severities):"
             trivy image \
-              --input "$tar" \
+              --image-src podman \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -106,7 +108,8 @@ jobs:
               --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
               --ignore-unfixed \
               --exit-code 0 \
-              --format table
+              --format table \
+              "$image"
 
             # 3) Check for HIGH/CRITICAL vulnerabilities but capture exit status
             # instead of failing immediately so reports can be uploaded.
