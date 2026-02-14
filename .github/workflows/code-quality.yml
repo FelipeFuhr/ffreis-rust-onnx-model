@@ -3,8 +3,18 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "app/**"
+      - "sonar-project.properties"
+      - "Makefile"
+      - ".github/workflows/code-quality.yml"
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - "app/**"
+      - "sonar-project.properties"
+      - "Makefile"
+      - ".github/workflows/code-quality.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

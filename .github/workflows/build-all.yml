@@ -3,8 +3,18 @@ name: Build All
 on:
   pull_request:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "Makefile"
+      - "rust-toolchain.toml"
+      - ".github/workflows/build-all.yml"
   push:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "Makefile"
+      - "rust-toolchain.toml"
+      - ".github/workflows/build-all.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -24,6 +34,11 @@ jobs:
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: ${{ matrix.rust }}
+      - name: Rust cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        with:
+          workspaces: |
+            app -> target
       - name: Build
         run: |
           set -euo pipefail
@@ -38,13 +53,18 @@ jobs:
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        with:
+          workspaces: |
+            app -> target
       - name: Run unit tests
         run: |
           set -euo pipefail
           make -C app test-unit
 
   integration-tests:
-    needs: unit-tests
+    needs: matrix-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -52,13 +72,18 @@ jobs:
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        with:
+          workspaces: |
+            app -> target
       - name: Run integration tests
         run: |
           set -euo pipefail
           make -C app test-integration
 
   e2e-smoke:
-    needs: integration-tests
+    needs: matrix-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -66,13 +91,18 @@ jobs:
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+        with:
+          workspaces: |
+            app -> target
       - name: Run e2e smoke tests (non-ignored)
         run: |
           set -euo pipefail
           make -C app test-e2e
 
   container-smoke:
-    needs: [matrix-build, e2e-smoke]
+    needs: matrix-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

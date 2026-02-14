@@ -3,8 +3,20 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "container/**"
+      - ".trivyignore.yaml"
+      - "Makefile"
+      - ".github/workflows/trivy.yml"
   push:
     branches: [ main ]
+    paths:
+      - "app/**"
+      - "container/**"
+      - ".trivyignore.yaml"
+      - "Makefile"
+      - ".github/workflows/trivy.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -38,10 +50,10 @@ jobs:
             "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_INSTALL_REF}/contrib/install.sh" \
             | sudo sh -s -- -b /usr/local/bin
           trivy --version
-      - name: Scan images from Podman (parallel, no tar export)
+      - name: Save images and scan (parallel, Podman)
         run: |
           set -euo pipefail
-          mkdir -p trivy-results
+          mkdir -p artifacts trivy-results
           images=(ffreis/base ffreis/base-builder ffreis/builder ffreis/base-runner ffreis/runner)
 
           # Warm DB once to avoid duplicate updates and lock contention in parallel scans.
@@ -50,10 +62,14 @@ jobs:
           scan_image() {
             image="$1"
             name="${image##*/}"
+            tar="artifacts/${name}.tar"
+
+            podman save -o "$tar" "$image"
+            test -s "$tar"
             # 1) Always produce SARIF for all severities so GitHub code scanning
             # has complete visibility, regardless of pass/fail gate outcome.
             trivy image \
-              --image-src podman \
+              --input "$tar" \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -62,13 +78,12 @@ jobs:
               --ignore-unfixed \
               --exit-code 0 \
               --format sarif \
-              --output "trivy-results/${name}.sarif" \
-              "$image"
+              --output "trivy-results/${name}.sarif"
             test -s "trivy-results/${name}.sarif"
 
             # 1b) Export JSON for trend analysis and triage automation.
             trivy image \
-              --image-src podman \
+              --input "$tar" \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -77,14 +92,13 @@ jobs:
               --ignore-unfixed \
               --exit-code 0 \
               --format json \
-              --output "trivy-results/${name}.json" \
-              "$image"
+              --output "trivy-results/${name}.json"
             test -s "trivy-results/${name}.json"
 
             # 2) Print a human-readable full report in CI logs (all severities).
             echo "Full vulnerability report for ${image} (all severities):"
             trivy image \
-              --image-src podman \
+              --input "$tar" \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -92,23 +106,22 @@ jobs:
               --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
               --ignore-unfixed \
               --exit-code 0 \
-              --format table \
-              "$image"
+              --format table
 
             # 3) Check for HIGH/CRITICAL vulnerabilities but capture exit status
             # instead of failing immediately so reports can be uploaded.
+            # Note: not using --ignore-unfixed here to ensure all HIGH/CRITICAL findings
+            # (fixed or unfixed) are gated. Use .trivyignore.yaml for explicit suppressions.
             echo "Gating ${image} on HIGH/CRITICAL vulnerabilities..."
             if ! trivy image \
-              --image-src podman \
+              --input "$tar" \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
               --scanners vuln \
               --severity HIGH,CRITICAL \
-              --ignore-unfixed \
               --exit-code 1 \
-              --format table \
-              "$image"; then
+              --format table; then
               echo "FAIL" > "trivy-results/${name}.gate-status"
             else
               echo "PASS" > "trivy-results/${name}.gate-status"
