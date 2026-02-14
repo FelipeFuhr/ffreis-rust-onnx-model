@@ -40,15 +40,29 @@ jobs:
           npm install -g snyk
           snyk --version
 
-      - name: Snyk Open Source scan (Cargo)
+      - name: Install CycloneDX generator for Cargo
+        run: |
+          set -euo pipefail
+          cargo install cargo-cyclonedx --locked
+
+      - name: Generate Cargo SBOM (CycloneDX JSON)
+        run: |
+          set -euo pipefail
+          mkdir -p snyk-results
+          (
+            cd app
+            cargo cyclonedx --format json
+          )
+          cp app/bom.json snyk-results/sbom.json
+          test -s snyk-results/sbom.json
+
+      - name: Snyk Open Source scan (SBOM)
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p snyk-results
-          snyk test \
-            --file=app/Cargo.toml \
-            --package-manager=cargo \
+          snyk sbom test \
+            --file=snyk-results/sbom.json \
             --sarif-file-output=snyk-results/oss.sarif || true
           test -s snyk-results/oss.sarif
 
