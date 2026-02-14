@@ -21,11 +21,11 @@ CONTAINER_DIR ?= container
 # Image names
 # ------------------------------------------------------------------------------
 
-BASE_IMAGE := $(PREFIX)/base
-BASE_BUILDER_IMAGE := $(PREFIX)/base-builder
-BUILDER_IMAGE := $(PREFIX)/builder
-BASE_RUNNER_IMAGE := $(PREFIX)/base-runner
-RUNNER_IMAGE := $(PREFIX)/runner
+BASE_IMAGE := $(PREFIX)/base-rust-onnx-model
+BASE_BUILDER_IMAGE := $(PREFIX)/base-rust-onnx-model-builder
+BUILDER_IMAGE := $(PREFIX)/rust-onnx-model-builder
+BASE_RUNNER_IMAGE := $(PREFIX)/base-rust-onnx-model-runner
+RUNNER_IMAGE := $(PREFIX)/rust-onnx-model-runner
 
 # ------------------------------------------------------------------------------
 # Derived values
