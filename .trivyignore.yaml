@@ -1,0 +1,17 @@
+# Trivy ignore policy (template).
+#
+# Keep this file small and time-bound:
+# - Prefer fixing vulnerabilities over ignoring them.
+# - Always include `statement` and `expired_at`.
+# - Scope ignores to specific `paths` whenever possible.
+#
+# Reference:
+# https://trivy.dev/latest/docs/configuration/filtering/#by-finding-ids
+vulnerabilities: []
+# Example entry:
+# vulnerabilities:
+#   - id: CVE-2099-0001
+#     paths:
+#       - "usr/lib/x86_64-linux-gnu/libexample.so.1"
+#     statement: "Accepted temporarily until base image digest update lands."
+#     expired_at: "2026-12-31"
