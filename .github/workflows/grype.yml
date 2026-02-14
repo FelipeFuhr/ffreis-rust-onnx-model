@@ -82,7 +82,7 @@ jobs:
           set -euo pipefail
           for f in grype-results/*.sarif; do
             name="$(basename "$f" .sarif)"
-            echo "Uploading $f with category grype-$name"
+            echo "Uploading $f with tool_name grype-$name"
             sarif_payload="$(gzip -c "$f" | base64 | tr -d '\n')"
 
             gh api \
