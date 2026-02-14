@@ -63,7 +63,7 @@ jobs:
               -X POST \
               /repos/${{ github.repository }}/code-scanning/sarifs \
               -f sarif="@${f}" \
-              -f category="trivy-${name}" \
+              -f tool_name="trivy-${name}" \
               -f commit_sha="${{ github.sha }}" \
               -f ref="${{ github.ref }}"
           done

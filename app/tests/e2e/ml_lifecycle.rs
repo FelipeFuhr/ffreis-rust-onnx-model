@@ -1,14 +1,18 @@
+const TEST_MODEL_PATH_ENV: &str = "TEST_MODEL_PATH";
+const TEST_DATASET_PATH_ENV: &str = "TEST_DATASET_PATH";
+const DEFAULT_MODEL_PATH: &str = "fixtures/model.onnx";
+
 #[test]
 fn model_fixture_path_is_configurable() {
     let model_path =
-        std::env::var("TEST_MODEL_PATH").unwrap_or_else(|_| "fixtures/model.onnx".to_string());
+        std::env::var(TEST_MODEL_PATH_ENV).unwrap_or_else(|_| DEFAULT_MODEL_PATH.to_string());
     assert!(!model_path.trim().is_empty());
 }
 
 #[test]
 #[ignore = "Enable once ONNX loading/inference API is implemented"]
 fn loads_model_and_runs_inference() {
-    let model_path = std::env::var("TEST_MODEL_PATH")
+    let model_path = std::env::var(TEST_MODEL_PATH_ENV)
         .expect("set TEST_MODEL_PATH to a real model before running this test");
     assert!(
         std::path::Path::new(&model_path).exists(),
@@ -24,7 +28,7 @@ fn loads_model_and_runs_inference() {
 #[test]
 #[ignore = "Enable once model fine-tuning/training path is implemented"]
 fn trains_model_from_fixture_data() {
-    let dataset_path = std::env::var("TEST_DATASET_PATH")
+    let dataset_path = std::env::var(TEST_DATASET_PATH_ENV)
         .expect("set TEST_DATASET_PATH to a training dataset before running this test");
     assert!(
         std::path::Path::new(&dataset_path).exists(),
