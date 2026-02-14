@@ -38,12 +38,17 @@ jobs:
             "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_INSTALL_REF}/contrib/install.sh" \
             | sudo sh -s -- -b /usr/local/bin
           trivy --version
-      - name: Save images and scan
+      - name: Save images and scan (parallel)
         run: |
           set -euo pipefail
           mkdir -p artifacts trivy-results
           images=(ffreis/base ffreis/base-builder ffreis/builder ffreis/base-runner ffreis/runner)
-          for image in "${images[@]}"; do
+
+          # Warm DB once to avoid duplicate updates and lock contention in parallel scans.
+          trivy image --download-db-only --no-progress
+
+          scan_image() {
+            image="$1"
             name="${image##*/}"
             tar="artifacts/${name}.tar"
             podman save -o "$tar" "$image"
@@ -52,6 +57,7 @@ jobs:
             # has complete visibility, regardless of pass/fail gate outcome.
             trivy image \
               --input "$tar" \
+              --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
               --scanners vuln \
@@ -65,6 +71,7 @@ jobs:
             # 1b) Export JSON for trend analysis and triage automation.
             trivy image \
               --input "$tar" \
+              --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
               --scanners vuln \
@@ -79,6 +86,7 @@ jobs:
             echo "Full vulnerability report for ${image} (all severities):"
             trivy image \
               --input "$tar" \
+              --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
               --scanners vuln \
@@ -91,6 +99,7 @@ jobs:
             echo "Gating ${image} on HIGH/CRITICAL vulnerabilities..."
             trivy image \
               --input "$tar" \
+              --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
               --scanners vuln \
@@ -98,6 +107,16 @@ jobs:
               --ignore-unfixed \
               --exit-code 1 \
               --format table
+          }
+
+          pids=()
+          for image in "${images[@]}"; do
+            scan_image "$image" &
+            pids+=("$!")
+          done
+
+          for pid in "${pids[@]}"; do
+            wait "$pid"
           done
       - name: Upload Trivy JSON reports
         uses: actions/upload-artifact@v4
