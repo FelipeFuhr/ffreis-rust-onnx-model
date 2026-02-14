@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -27,16 +27,52 @@ jobs:
       - name: Build
         run: |
           set -euo pipefail
-          if [ -d app ]; then cd app; fi
-          cargo build --release
-      - name: Test
+          make -C app build
+
+  unit-tests:
+    needs: matrix-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+      - name: Run unit tests
         run: |
           set -euo pipefail
-          if [ -d app ]; then cd app; fi
-          cargo test --release
+          make -C app test-unit
+
+  integration-tests:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+      - name: Run integration tests
+        run: |
+          set -euo pipefail
+          make -C app test-integration
+
+  e2e-smoke:
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+      - name: Run e2e smoke tests (non-ignored)
+        run: |
+          set -euo pipefail
+          make -C app test-e2e
 
   container-smoke:
-    needs: matrix-build
+    needs: [matrix-build, e2e-smoke]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -53,16 +89,22 @@ jobs:
   pr-summary:
     name: PR Summary
     if: always()
-    needs: [matrix-build, container-smoke]
+    needs: [matrix-build, unit-tests, integration-tests, e2e-smoke, container-smoke]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency failed/cancelled
         run: |
           set -euo pipefail
           echo "matrix-build result: ${{ needs.matrix-build.result }}"
+          echo "unit-tests result: ${{ needs.unit-tests.result }}"
+          echo "integration-tests result: ${{ needs.integration-tests.result }}"
+          echo "e2e-smoke result: ${{ needs.e2e-smoke.result }}"
           echo "container-smoke result: ${{ needs.container-smoke.result }}"
 
           if [[ "${{ needs.matrix-build.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.unit-tests.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.integration-tests.result }}" != "success" ]]; then exit 1; fi
+          if [[ "${{ needs.e2e-smoke.result }}" != "success" ]]; then exit 1; fi
           if [[ "${{ needs.container-smoke.result }}" != "success" ]]; then exit 1; fi
 
           echo "All checks passed."

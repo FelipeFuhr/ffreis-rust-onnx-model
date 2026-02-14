@@ -54,6 +54,22 @@ build: ## Build the app
 test: ## Run tests
 	$(CARGO) test --verbose
 
+.PHONY: test-unit
+test-unit: ## Run unit tests only (src/*)
+	$(CARGO) test --lib --verbose
+
+.PHONY: test-integration
+test-integration: ## Run integration tests only (tests/integration/*)
+	$(CARGO) test --test integration_tests --verbose
+
+.PHONY: test-e2e
+test-e2e: ## Run e2e/ML scaffold tests (ignored tests are not run by default)
+	$(CARGO) test --test e2e_tests --verbose
+
+.PHONY: test-e2e-ignored
+test-e2e-ignored: ## Run ignored e2e/ML tests (requires external fixtures)
+	$(CARGO) test --test e2e_tests -- --ignored --nocapture
+
 .PHONY: clean
 clean: ## Clean Rust build artifacts
 	$(CARGO) clean

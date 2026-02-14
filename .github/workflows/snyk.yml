@@ -1,0 +1,96 @@
+name: Security Scan (Snyk)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: "0 10 * * 1" # Mondays 10:00 UTC
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  snyk:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+
+      - name: Setup Node.js (for Snyk CLI)
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Snyk CLI
+        run: |
+          set -euo pipefail
+          npm install -g snyk
+          snyk --version
+
+      - name: Install CycloneDX generator for Cargo
+        run: |
+          set -euo pipefail
+          cargo install cargo-cyclonedx --locked
+
+      - name: Generate Cargo SBOM (CycloneDX JSON)
+        run: |
+          set -euo pipefail
+          mkdir -p snyk-results
+          (
+            cd app
+            cargo cyclonedx --format json
+          )
+          sbom_path="$(
+            find app -type f \( -name "bom.json" -o -name "*.cdx.json" -o -name "*cyclonedx*.json" \) \
+              | head -n 1
+          )"
+          if [ -z "${sbom_path}" ]; then
+            echo "No CycloneDX JSON SBOM file found under app/ after cargo cyclonedx." >&2
+            find app -maxdepth 3 -type f | sort >&2
+            exit 1
+          fi
+          cp "${sbom_path}" snyk-results/sbom.json
+          test -s snyk-results/sbom.json
+
+      - name: Snyk Open Source scan (SBOM)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          snyk sbom test \
+            --file=snyk-results/sbom.json \
+            --sarif-file-output=snyk-results/oss.sarif || true
+          test -s snyk-results/oss.sarif
+
+      - name: Snyk Code scan
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          snyk code test --sarif-file-output=snyk-results/code.sarif || true
+          test -s snyk-results/code.sarif
+
+      - name: Upload Snyk OSS SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: snyk-results/oss.sarif
+          category: snyk-oss
+
+      - name: Upload Snyk Code SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: snyk-results/code.sarif
+          category: snyk-code

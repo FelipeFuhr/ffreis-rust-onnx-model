@@ -8,7 +8,7 @@ on:
     branches: [ main ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -83,12 +83,13 @@ jobs:
           for f in grype-results/*.sarif; do
             name="$(basename "$f" .sarif)"
             echo "Uploading $f with category grype-$name"
+            sarif_payload="$(gzip -c "$f" | base64 | tr -d '\n')"
 
             gh api \
               -X POST \
               /repos/${{ github.repository }}/code-scanning/sarifs \
-              -f sarif="@${f}" \
-              -f category="grype-${name}" \
+              -f sarif="${sarif_payload}" \
+              -f tool_name="grype-${name}" \
               -f commit_sha="${{ github.sha }}" \
               -f ref="${{ github.ref }}"
           done
