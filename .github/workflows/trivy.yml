@@ -38,10 +38,10 @@ jobs:
             "https://raw.githubusercontent.com/aquasecurity/trivy/${TRIVY_INSTALL_REF}/contrib/install.sh" \
             | sudo sh -s -- -b /usr/local/bin
           trivy --version
-      - name: Save images and scan (parallel)
+      - name: Scan images from Podman (parallel, no tar export)
         run: |
           set -euo pipefail
-          mkdir -p artifacts trivy-results
+          mkdir -p trivy-results
           images=(ffreis/base ffreis/base-builder ffreis/builder ffreis/base-runner ffreis/runner)
 
           # Warm DB once to avoid duplicate updates and lock contention in parallel scans.
@@ -50,13 +50,10 @@ jobs:
           scan_image() {
             image="$1"
             name="${image##*/}"
-            tar="artifacts/${name}.tar"
-            podman save -o "$tar" "$image"
-            test -s "$tar"
             # 1) Always produce SARIF for all severities so GitHub code scanning
             # has complete visibility, regardless of pass/fail gate outcome.
             trivy image \
-              --input "$tar" \
+              --image-src podman \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -65,12 +62,13 @@ jobs:
               --ignore-unfixed \
               --exit-code 0 \
               --format sarif \
-              --output "trivy-results/${name}.sarif"
+              --output "trivy-results/${name}.sarif" \
+              "$image"
             test -s "trivy-results/${name}.sarif"
 
             # 1b) Export JSON for trend analysis and triage automation.
             trivy image \
-              --input "$tar" \
+              --image-src podman \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -79,13 +77,14 @@ jobs:
               --ignore-unfixed \
               --exit-code 0 \
               --format json \
-              --output "trivy-results/${name}.json"
+              --output "trivy-results/${name}.json" \
+              "$image"
             test -s "trivy-results/${name}.json"
 
             # 2) Print a human-readable full report in CI logs (all severities).
             echo "Full vulnerability report for ${image} (all severities):"
             trivy image \
-              --input "$tar" \
+              --image-src podman \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -93,12 +92,14 @@ jobs:
               --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
               --ignore-unfixed \
               --exit-code 0 \
-              --format table
+              --format table \
+              "$image"
 
-            # 3) Enforce policy: fail only when HIGH/CRITICAL vulnerabilities exist.
+            # 3) Check for HIGH/CRITICAL vulnerabilities but capture exit status
+            # instead of failing immediately so reports can be uploaded.
             echo "Gating ${image} on HIGH/CRITICAL vulnerabilities..."
-            trivy image \
-              --input "$tar" \
+            if ! trivy image \
+              --image-src podman \
               --skip-db-update \
               --no-progress \
               --ignorefile .trivyignore.yaml \
@@ -106,7 +107,12 @@ jobs:
               --severity HIGH,CRITICAL \
               --ignore-unfixed \
               --exit-code 1 \
-              --format table
+              --format table \
+              "$image"; then
+              echo "FAIL" > "trivy-results/${name}.gate-status"
+            else
+              echo "PASS" > "trivy-results/${name}.gate-status"
+            fi
           }
 
           pids=()
@@ -119,13 +125,14 @@ jobs:
             wait "$pid"
           done
       - name: Upload Trivy JSON reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: trivy-json-reports
           path: trivy-results/*.json
           if-no-files-found: error
       - name: Upload Trivy SARIF (per image)
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         shell: bash
         run: |
           set -euo pipefail
@@ -143,3 +150,28 @@ jobs:
           done
         env:
           GH_TOKEN: ${{ github.token }}
+      - name: Check gate results
+        if: always()
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          failed=0
+          gate_files=(trivy-results/*.gate-status)
+          if [ ${#gate_files[@]} -eq 0 ]; then
+            echo "::error::No gate status files found - scans may not have completed"
+            exit 1
+          fi
+          for f in "${gate_files[@]}"; do
+            name="$(basename "$f" .gate-status)"
+            status="$(cat "$f")"
+            if [ "$status" = "FAIL" ]; then
+              echo "::error::Image ${name} failed HIGH/CRITICAL vulnerability gate"
+              failed=1
+            elif [ "$status" = "PASS" ]; then
+              echo "Image ${name} passed HIGH/CRITICAL vulnerability gate"
+            else
+              echo "::error::Image ${name} has unexpected gate status: ${status}"
+              failed=1
+            fi
+          done
+          exit $failed
