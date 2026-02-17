@@ -55,8 +55,26 @@ fn build_cfg_with_temp_model() -> (TempDir, AppConfig) {
 async fn http_health_and_ready_endpoints_are_available() {
     let (_tmp, cfg) = build_cfg_with_temp_model();
     let (base_url, handle) = start_http_server(cfg).await;
-    tokio::time::sleep(Duration::from_millis(50)).await;
     let client = reqwest::Client::new();
+
+    // Wait for the server to become ready by polling /readyz with a timeout.
+    let mut ready = false;
+    for _ in 0u32..100 {
+        match client
+            .get(format!("{base_url}/readyz"))
+            .send()
+            .await
+        {
+            Ok(response) if response.status() == reqwest::StatusCode::OK => {
+                ready = true;
+                break;
+            }
+            _ => {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
+    }
+    assert!(ready, "HTTP server did not become ready in time");
 
     for path in ["/live", "/healthz", "/ready", "/readyz", "/ping"] {
         let response = client
@@ -81,12 +99,23 @@ async fn http_and_grpc_predict_parity_for_json_and_csv() {
     let (_tmp, cfg) = build_cfg_with_temp_model();
     let (http_base, http_handle) = start_http_server(cfg.clone()).await;
     let (grpc_url, grpc_handle) = start_grpc_server(cfg).await;
-    tokio::time::sleep(Duration::from_millis(75)).await;
 
     let client = reqwest::Client::new();
-    let mut grpc_client = InferenceServiceClient::connect(grpc_url)
-        .await
-        .expect("grpc client should connect");
+    
+    // Retry gRPC connection until it succeeds or timeout
+    let mut grpc_client = None;
+    for _ in 0u32..100 {
+        match InferenceServiceClient::connect(grpc_url.clone()).await {
+            Ok(client) => {
+                grpc_client = Some(client);
+                break;
+            }
+            Err(_) => {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
+    }
+    let mut grpc_client = grpc_client.expect("gRPC client should connect after retries");
 
     let payloads = vec![
         (
@@ -149,7 +178,6 @@ async fn invalid_json_maps_to_http_400_and_grpc_invalid_argument() {
     let (_tmp, cfg) = build_cfg_with_temp_model();
     let (http_base, http_handle) = start_http_server(cfg.clone()).await;
     let (grpc_url, grpc_handle) = start_grpc_server(cfg).await;
-    tokio::time::sleep(Duration::from_millis(75)).await;
 
     let bad_payload = b"{not-json".to_vec();
     let client = reqwest::Client::new();
@@ -163,9 +191,20 @@ async fn invalid_json_maps_to_http_400_and_grpc_invalid_argument() {
         .expect("http bad response");
     assert_eq!(http_response.status(), reqwest::StatusCode::BAD_REQUEST);
 
-    let mut grpc_client = InferenceServiceClient::connect(grpc_url)
-        .await
-        .expect("grpc client should connect");
+    // Retry gRPC connection until it succeeds or timeout
+    let mut grpc_client = None;
+    for _ in 0u32..100 {
+        match InferenceServiceClient::connect(grpc_url.clone()).await {
+            Ok(client) => {
+                grpc_client = Some(client);
+                break;
+            }
+            Err(_) => {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
+    }
+    let mut grpc_client = grpc_client.expect("gRPC client should connect after retries");
     let grpc_error = grpc_client
         .predict(PredictRequest {
             payload: bad_payload,
@@ -205,9 +244,20 @@ async fn record_limit_violation_maps_to_http_400_and_grpc_invalid_argument() {
         .unwrap_or_default()
         .contains("too_many_records"));
 
-    let mut grpc_client = InferenceServiceClient::connect(grpc_url)
-        .await
-        .expect("grpc connect");
+    // Retry gRPC connection until it succeeds or timeout
+    let mut grpc_client = None;
+    for _ in 0u32..100 {
+        match InferenceServiceClient::connect(grpc_url.clone()).await {
+            Ok(client) => {
+                grpc_client = Some(client);
+                break;
+            }
+            Err(_) => {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
+    }
+    let mut grpc_client = grpc_client.expect("gRPC client should connect after retries");
     let grpc_error = grpc_client
         .predict(PredictRequest {
             payload,
