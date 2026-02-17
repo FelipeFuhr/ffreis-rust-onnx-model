@@ -6,6 +6,9 @@ fn main() {
         std::env::set_var("PROTOC", protoc_path);
     }
 
+    println!("cargo:rerun-if-changed=proto/onnx_serving_grpc/inference.proto");
+    println!("cargo:rerun-if-env-changed=PROTOC");
+
     tonic_build::configure()
         .build_server(true)
         .build_client(true)
