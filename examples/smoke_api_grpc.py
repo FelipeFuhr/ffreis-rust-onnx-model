@@ -39,19 +39,31 @@ def _assert_http(api_base: str) -> None:
 
 
 def _assert_grpc(target: str) -> None:
-    with grpc.insecure_channel(target) as channel:
-        live_rpc = channel.unary_unary(
-            "/onnxserving.grpc.InferenceService/Live",
-            request_serializer=lambda _: b"",
-            response_deserializer=lambda data: data,
-        )
-        ready_rpc = channel.unary_unary(
-            "/onnxserving.grpc.InferenceService/Ready",
-            request_serializer=lambda _: b"",
-            response_deserializer=lambda data: data,
-        )
-        _ = live_rpc(b"", timeout=5.0)
-        _ = ready_rpc(b"", timeout=5.0)
+    deadline = time.time() + 30.0
+    last_error: Exception | None = None
+    
+    # Retry gRPC connection until it succeeds or timeout
+    while time.time() < deadline:
+        try:
+            with grpc.insecure_channel(target) as channel:
+                live_rpc = channel.unary_unary(
+                    "/onnxserving.grpc.InferenceService/Live",
+                    request_serializer=lambda _: b"",
+                    response_deserializer=lambda data: data,
+                )
+                ready_rpc = channel.unary_unary(
+                    "/onnxserving.grpc.InferenceService/Ready",
+                    request_serializer=lambda _: b"",
+                    response_deserializer=lambda data: data,
+                )
+                _ = live_rpc(b"", timeout=5.0)
+                _ = ready_rpc(b"", timeout=5.0)
+                return  # Success
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+        time.sleep(0.5)
+    
+    raise RuntimeError(f"timed out waiting for gRPC at {target}: {last_error}")
 
 
 def main() -> None:
