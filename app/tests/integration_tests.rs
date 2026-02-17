@@ -7,6 +7,11 @@ use app::{serve_grpc, serve_http, AppConfig};
 use tempfile::TempDir;
 use tokio::net::TcpListener;
 
+/// Maximum number of retry attempts for server connection/readiness checks
+const MAX_RETRY_ATTEMPTS: u32 = 100;
+/// Delay between retry attempts in milliseconds
+const RETRY_DELAY_MS: u64 = 50;
+
 async fn start_http_server(
     cfg: AppConfig,
 ) -> (String, tokio::task::JoinHandle<Result<(), std::io::Error>>) {
@@ -59,7 +64,7 @@ async fn http_health_and_ready_endpoints_are_available() {
 
     // Wait for the server to become ready by polling /readyz with a timeout.
     let mut ready = false;
-    for _ in 0u32..100 {
+    for _ in 0..MAX_RETRY_ATTEMPTS {
         match client
             .get(format!("{base_url}/readyz"))
             .send()
@@ -70,7 +75,7 @@ async fn http_health_and_ready_endpoints_are_available() {
                 break;
             }
             _ => {
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS)).await;
             }
         }
     }
@@ -104,14 +109,14 @@ async fn http_and_grpc_predict_parity_for_json_and_csv() {
     
     // Retry gRPC connection until it succeeds or timeout
     let mut grpc_client = None;
-    for _ in 0u32..100 {
+    for _ in 0..MAX_RETRY_ATTEMPTS {
         match InferenceServiceClient::connect(grpc_url.clone()).await {
             Ok(client) => {
                 grpc_client = Some(client);
                 break;
             }
             Err(_) => {
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS)).await;
             }
         }
     }
@@ -193,14 +198,14 @@ async fn invalid_json_maps_to_http_400_and_grpc_invalid_argument() {
 
     // Retry gRPC connection until it succeeds or timeout
     let mut grpc_client = None;
-    for _ in 0u32..100 {
+    for _ in 0..MAX_RETRY_ATTEMPTS {
         match InferenceServiceClient::connect(grpc_url.clone()).await {
             Ok(client) => {
                 grpc_client = Some(client);
                 break;
             }
             Err(_) => {
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS)).await;
             }
         }
     }
@@ -246,14 +251,14 @@ async fn record_limit_violation_maps_to_http_400_and_grpc_invalid_argument() {
 
     // Retry gRPC connection until it succeeds or timeout
     let mut grpc_client = None;
-    for _ in 0u32..100 {
+    for _ in 0..MAX_RETRY_ATTEMPTS {
         match InferenceServiceClient::connect(grpc_url.clone()).await {
             Ok(client) => {
                 grpc_client = Some(client);
                 break;
             }
             Err(_) => {
-                tokio::time::sleep(Duration::from_millis(50)).await;
+                tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS)).await;
             }
         }
     }
