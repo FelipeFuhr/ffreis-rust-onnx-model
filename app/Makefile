@@ -43,6 +43,18 @@ clippy: ## Run clippy lints
 lint: fmt-check clippy ## Run format check and clippy
 
 # ------------------------------------------------------------------------------
+# gRPC + parity
+# ------------------------------------------------------------------------------
+
+.PHONY: grpc-check
+grpc-check: ## Verify protobuf/gRPC contract compiles
+	$(CARGO) check --verbose
+
+.PHONY: test-grpc-parity
+test-grpc-parity: ## Run HTTP/gRPC parity integration tests
+	$(CARGO) test --test integration_tests --verbose
+
+# ------------------------------------------------------------------------------
 # Build & test
 # ------------------------------------------------------------------------------
 

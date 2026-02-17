@@ -157,6 +157,18 @@ clippy: ## Run clippy lints
 test: ## Run tests
 	$(MAKE) -C app test
 
+.PHONY: grpc-check
+grpc-check: ## Verify protobuf/gRPC contract compiles
+	$(MAKE) -C app grpc-check
+
+.PHONY: test-grpc-parity
+test-grpc-parity: ## Run HTTP/gRPC parity tests
+	$(MAKE) -C app test-grpc-parity
+
+.PHONY: smoke-api-grpc
+smoke-api-grpc: ## Run docker-compose HTTP + gRPC smoke test
+	docker compose -f examples/docker-compose.api-grpc.yml up --build --abort-on-container-exit --exit-code-from smoke
+
 .PHONY: lint
 lint: fmt-check clippy ## Run formatting check + clippy
 

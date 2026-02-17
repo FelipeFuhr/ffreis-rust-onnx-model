@@ -80,6 +80,8 @@ jobs:
       - name: Run integration tests
         run: |
           set -euo pipefail
+          make grpc-check
+          make test-grpc-parity
           make -C app test-integration
 
   e2e-smoke:
