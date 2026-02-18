@@ -183,10 +183,10 @@ test-grpc-parity: ## Run HTTP/gRPC parity tests
 smoke-api-grpc: ## Run docker-compose HTTP + gRPC smoke test
 	@set -euo pipefail; \
 	cleanup() { \
-		IMAGE_ROOT="$(IMAGE_ROOT)" IMAGE_TAG="$(IMAGE_TAG)" docker compose -f examples/docker-compose.api-grpc.yml down --remove-orphans || true; \
+		IMAGE_ROOT="$(IMAGE_ROOT)" IMAGE_TAG="$(IMAGE_TAG)" $(CONTAINER_COMMAND) compose -f examples/docker-compose.api-grpc.yml down --remove-orphans || true; \
 	}; \
 	trap cleanup EXIT; \
-	IMAGE_ROOT="$(IMAGE_ROOT)" IMAGE_TAG="$(IMAGE_TAG)" timeout --foreground "$(SMOKE_TIMEOUT)" docker compose -f examples/docker-compose.api-grpc.yml up --build --abort-on-container-exit --exit-code-from smoke
+	IMAGE_ROOT="$(IMAGE_ROOT)" IMAGE_TAG="$(IMAGE_TAG)" timeout --foreground "$(SMOKE_TIMEOUT)" $(CONTAINER_COMMAND) compose -f examples/docker-compose.api-grpc.yml up --build --abort-on-container-exit --exit-code-from smoke
 
 .PHONY: lint
 lint: fmt-check clippy ## Run formatting check + clippy

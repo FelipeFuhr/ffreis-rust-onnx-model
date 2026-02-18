@@ -41,7 +41,7 @@ def _assert_http(api_base: str) -> None:
 def _assert_grpc(target: str) -> None:
     deadline = time.time() + 30.0
     last_error: Exception | None = None
-    
+
     # Retry gRPC connection until it succeeds or timeout
     while time.time() < deadline:
         try:
@@ -62,7 +62,7 @@ def _assert_grpc(target: str) -> None:
         except Exception as exc:  # noqa: BLE001
             last_error = exc
         time.sleep(0.5)
-    
+
     raise RuntimeError(f"timed out waiting for gRPC at {target}: {last_error}")
 
 

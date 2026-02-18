@@ -157,12 +157,25 @@ fn env_f64(name: &str, default: f64) -> f64 {
 
 impl AppConfig {
     fn model_path(&self) -> PathBuf {
+        let dir = Path::new(&self.model_dir);
+        if !dir.exists() {
+            panic!(
+                "Configured model directory '{}' does not exist",
+                self.model_dir
+            );
+        }
+        if !dir.is_dir() {
+            panic!(
+                "Configured model path '{}' is not a directory",
+                self.model_dir
+            );
+        }
         let filename = if self.model_filename.trim().is_empty() {
             "model.onnx".to_string()
         } else {
             self.model_filename.clone()
         };
-        Path::new(&self.model_dir).join(filename)
+        dir.join(filename)
     }
 }
 
@@ -736,8 +749,7 @@ fn parse_csv_rows(payload: &[u8], cfg: &AppConfig) -> Result<Vec<Vec<f64>>, Stri
     let mut lines = text
         .lines()
         .map(str::trim)
-        .filter(|line| !line.is_empty() || !cfg.csv_skip_blank_lines)
-        .filter(|line| !line.is_empty())
+        .filter(|line| !cfg.csv_skip_blank_lines || !line.is_empty())
         .collect::<Vec<&str>>();
     if lines.is_empty() {
         return Err("Empty CSV payload".to_string());
@@ -753,6 +765,9 @@ fn parse_csv_rows(payload: &[u8], cfg: &AppConfig) -> Result<Vec<Vec<f64>>, Stri
         }
         "false" => {}
         _ => return Err("CSV_HAS_HEADER must be auto|true|false".to_string()),
+    }
+    if lines.is_empty() {
+        return Err("CSV payload contains only header row".to_string());
     }
     let delim = cfg.csv_delimiter.as_str();
     lines
@@ -1046,22 +1061,25 @@ pub async fn run_grpc_server(
 
 #[derive(Clone)]
 pub struct InferenceGrpcService {
-    cfg: AppConfig,
-    adapter: Option<Arc<dyn BaseAdapter>>,
+    state: AppState,
     load_error: Option<String>,
 }
 
 impl InferenceGrpcService {
     fn new(cfg: AppConfig) -> Self {
+        let state = AppState::new(cfg.clone());
         match load_adapter(&cfg) {
-            Ok(adapter) => Self {
-                cfg,
-                adapter: Some(adapter),
-                load_error: None,
-            },
+            Ok(adapter) => {
+                // Pre-populate the adapter in the state synchronously
+                // We can't use async here, but ensure_adapter_loaded will populate it on first use
+                // The ready check and predict will ensure it's loaded before use
+                Self {
+                    state,
+                    load_error: None,
+                }
+            }
             Err(err) => Self {
-                cfg,
-                adapter: None,
+                state,
                 load_error: Some(err),
             },
         }
@@ -1085,7 +1103,10 @@ impl grpc::inference_service_server::InferenceService for InferenceGrpcService {
         _request: Request<grpc::ReadyRequest>,
     ) -> Result<Response<grpc::StatusReply>, Status> {
         let ready = self
+            .state
             .adapter
+            .read()
+            .await
             .as_ref()
             .is_some_and(|adapter| adapter.is_ready());
         Ok(Response::new(grpc::StatusReply {
@@ -1108,49 +1129,64 @@ impl grpc::inference_service_server::InferenceService for InferenceGrpcService {
         let req = request.into_inner();
 
         // Enforce max_body_bytes to maintain HTTP/gRPC parity
-        if req.payload.len() > self.cfg.max_body_bytes {
+        if req.payload.len() > self.state.cfg.max_body_bytes {
             return Err(Status::new(
                 Code::InvalidArgument,
                 format!(
                     "payload too large: {} bytes > {} bytes limit",
                     req.payload.len(),
-                    self.cfg.max_body_bytes
+                    self.state.cfg.max_body_bytes
                 ),
             ));
         }
 
+        // Apply max_inflight semaphore for HTTP/gRPC parity
+        let _permit = match timeout(
+            Duration::from_secs_f64(self.state.cfg.acquire_timeout_s.max(0.0)),
+            self.state.inflight.clone().acquire_owned(),
+        )
+        .await
+        {
+            Ok(Ok(permit)) => permit,
+            _ => {
+                return Err(Status::new(Code::ResourceExhausted, "too_many_requests"));
+            }
+        };
+
         let content_type = if req.content_type.is_empty() {
-            self.cfg.default_content_type.as_str()
+            self.state.cfg.default_content_type.as_str()
         } else {
             req.content_type.as_str()
         };
         let accept = if req.accept.is_empty() {
-            self.cfg.default_accept.as_str()
+            self.state.cfg.default_accept.as_str()
         } else {
             req.accept.as_str()
         };
 
         let adapter = self
-            .adapter
-            .as_ref()
-            .ok_or_else(|| Status::new(Code::Internal, "adapter unavailable"))?;
-        let parser_state = AppState::new(self.cfg.clone());
-        let parsed = parser_state
+            .state
+            .ensure_adapter_loaded()
+            .await
+            .map_err(|err| Status::new(Code::Internal, err))?;
+        let parsed = self
+            .state
             .parse_payload(req.payload.as_ref(), content_type)
             .map_err(|err| Status::new(Code::InvalidArgument, err))?;
         let batch = parsed
             .batch_size()
             .map_err(|err| Status::new(Code::InvalidArgument, err))?;
-        if batch > self.cfg.max_records {
+        if batch > self.state.cfg.max_records {
             return Err(Status::new(
                 Code::InvalidArgument,
-                format!("too_many_records: {batch} > {}", self.cfg.max_records),
+                format!("too_many_records: {batch} > {}", self.state.cfg.max_records),
             ));
         }
         let predictions = adapter
             .predict(&parsed)
             .map_err(|err| Status::new(Code::InvalidArgument, err))?;
-        let (body, output_content_type) = parser_state
+        let (body, output_content_type) = self
+            .state
             .format_output(predictions, accept)
             .map_err(|err| Status::new(Code::InvalidArgument, err))?;
         let mut metadata = HashMap::new();
