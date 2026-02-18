@@ -9,7 +9,7 @@ async fn main() {
     let port = env::var("PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
-        .unwrap_or(if mode == "grpc" { 50052 } else { 8080 });
+        .unwrap_or_else(|| if mode == "grpc" { 50052 } else { 8080 });
     let cfg = AppConfig::default();
 
     match mode.as_str() {

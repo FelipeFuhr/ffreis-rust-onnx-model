@@ -446,7 +446,7 @@ impl AppState {
             return Err("Parsed payload is empty".to_string());
         }
         if self.cfg.tabular_num_features > 0 {
-            let got = matrix.first().map(|r| r.len()).unwrap_or(0);
+            let got = matrix.first().map_or(0, |r| r.len());
             if got != self.cfg.tabular_num_features {
                 return Err(format!(
                     "Feature count mismatch: got {got} expected TABULAR_NUM_FEATURES={}",
@@ -461,10 +461,10 @@ impl AppState {
             let feature_idx = if !self.cfg.tabular_feature_columns.is_empty() {
                 parse_col_selector(
                     &self.cfg.tabular_feature_columns,
-                    matrix.first().map(|r| r.len()).unwrap_or(0),
+                    matrix.first().map_or(0, |r| r.len()),
                 )?
             } else {
-                let n_cols = matrix.first().map(|r| r.len()).unwrap_or(0);
+                let n_cols = matrix.first().map_or(0, |r| r.len());
                 let id_idx = parse_col_selector(&self.cfg.tabular_id_columns, n_cols)?;
                 (0..n_cols)
                     .filter(|col| !id_idx.contains(col))
@@ -571,7 +571,9 @@ impl AppState {
         let payload = if self.cfg.predictions_only {
             predictions
         } else {
-            json!({ self.cfg.json_output_key.clone(): predictions })
+            let mut output: serde_json::Map<String, Value> = Default::default();
+            output.insert(self.cfg.json_output_key.clone(), predictions);
+            Value::Object(output)
         };
         let bytes =
             serde_json::to_vec(&payload).map_err(|err| format!("failed to encode json: {err}"))?;
@@ -891,22 +893,6 @@ async fn http_invocations(
             .into_response();
     }
 
-    let permit = match timeout(
-        Duration::from_secs_f64(state.cfg.acquire_timeout_s.max(0.0)),
-        state.inflight.clone().acquire_owned(),
-    )
-    .await
-    {
-        Ok(Ok(permit)) => permit,
-        _ => {
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                Json(json!({"error": "too_many_requests"})),
-            )
-                .into_response();
-        }
-    };
-
     let content_type = header_value_with_fallback(
         &headers,
         CONTENT_TYPE,
@@ -919,48 +905,60 @@ async fn http_invocations(
         SAGEMAKER_ACCEPT_HEADER,
         state.cfg.default_accept.as_str(),
     );
-    let adapter = match state.ensure_adapter_loaded().await {
-        Ok(adapter) => adapter,
-        Err(err) => {
-            drop(permit);
+    let result = {
+        let _permit = match timeout(
+            Duration::from_secs_f64(state.cfg.acquire_timeout_s.max(0.0)),
+            state.inflight.clone().acquire_owned(),
+        )
+        .await
+        {
+            Ok(Ok(permit)) => permit,
+            _ => {
+                return (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    Json(json!({"error": "too_many_requests"})),
+                )
+                    .into_response();
+            }
+        };
+
+        let adapter = match state.ensure_adapter_loaded().await {
+            Ok(adapter) => adapter,
+            Err(err) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"error": err})),
+                )
+                    .into_response();
+            }
+        };
+        let parsed = match state.parse_payload(payload.as_ref(), content_type.as_str()) {
+            Ok(parsed) => parsed,
+            Err(err) => {
+                return (StatusCode::BAD_REQUEST, Json(json!({ "error": err }))).into_response();
+            }
+        };
+        let batch = match parsed.batch_size() {
+            Ok(size) => size,
+            Err(err) => {
+                return (StatusCode::BAD_REQUEST, Json(json!({ "error": err }))).into_response();
+            }
+        };
+        if batch > state.cfg.max_records {
             return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": err})),
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": format!("too_many_records: {batch} > {}", state.cfg.max_records) })),
             )
                 .into_response();
         }
+        let predictions = match adapter.predict(&parsed) {
+            Ok(predictions) => predictions,
+            Err(err) => {
+                return (StatusCode::BAD_REQUEST, Json(json!({ "error": err }))).into_response();
+            }
+        };
+        state.format_output(predictions, accept.as_str())
     };
-    let parsed = match state.parse_payload(payload.as_ref(), content_type.as_str()) {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            drop(permit);
-            return (StatusCode::BAD_REQUEST, Json(json!({ "error": err }))).into_response();
-        }
-    };
-    let batch = match parsed.batch_size() {
-        Ok(size) => size,
-        Err(err) => {
-            drop(permit);
-            return (StatusCode::BAD_REQUEST, Json(json!({ "error": err }))).into_response();
-        }
-    };
-    if batch > state.cfg.max_records {
-        drop(permit);
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": format!("too_many_records: {batch} > {}", state.cfg.max_records) })),
-        )
-            .into_response();
-    }
-    let predictions = match adapter.predict(&parsed) {
-        Ok(predictions) => predictions,
-        Err(err) => {
-            drop(permit);
-            return (StatusCode::BAD_REQUEST, Json(json!({ "error": err }))).into_response();
-        }
-    };
-    let result = state.format_output(predictions, accept.as_str());
-    drop(permit);
 
     match result {
         Ok((body, content_type)) => {
@@ -1108,7 +1106,7 @@ impl grpc::inference_service_server::InferenceService for InferenceGrpcService {
             return Err(Status::new(Code::Internal, err.clone()));
         }
         let req = request.into_inner();
-        
+
         // Enforce max_body_bytes to maintain HTTP/gRPC parity
         if req.payload.len() > self.cfg.max_body_bytes {
             return Err(Status::new(
@@ -1120,7 +1118,7 @@ impl grpc::inference_service_server::InferenceService for InferenceGrpcService {
                 ),
             ));
         }
-        
+
         let content_type = if req.content_type.is_empty() {
             self.cfg.default_content_type.as_str()
         } else {

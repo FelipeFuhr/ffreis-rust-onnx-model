@@ -53,7 +53,9 @@ async fn poll_until_ready(client: &reqwest::Client, base_url: &str) -> bool {
 }
 
 /// Retry gRPC client connection until success or timeout
-async fn retry_grpc_connect(url: String) -> Option<InferenceServiceClient<tonic::transport::Channel>> {
+async fn retry_grpc_connect(
+    url: String,
+) -> Option<InferenceServiceClient<tonic::transport::Channel>> {
     for _ in 0..MAX_RETRY_ATTEMPTS {
         match InferenceServiceClient::connect(url.clone()).await {
             Ok(client) => return Some(client),
@@ -253,6 +255,101 @@ async fn record_limit_violation_maps_to_http_400_and_grpc_invalid_argument() {
     assert!(grpc_error.message().contains("too_many_records"));
 
     http_handle.abort();
+    grpc_handle.abort();
+}
+
+#[tokio::test]
+async fn oversized_payload_maps_to_http_413_and_grpc_invalid_argument() {
+    let (_tmp, mut cfg) = build_cfg_with_temp_model();
+    cfg.max_body_bytes = 8;
+    let (http_base, http_handle) = start_http_server(cfg.clone()).await;
+    let (grpc_url, grpc_handle) = start_grpc_server(cfg).await;
+    tokio::time::sleep(Duration::from_millis(75)).await;
+
+    let payload = b"1,2,3\n4,5,6\n".to_vec();
+    let client = reqwest::Client::new();
+    let http_response = client
+        .post(format!("{http_base}/invocations"))
+        .header("content-type", "text/csv")
+        .header("accept", "application/json")
+        .body(payload.clone())
+        .send()
+        .await
+        .expect("http response");
+    assert_eq!(
+        http_response.status(),
+        reqwest::StatusCode::PAYLOAD_TOO_LARGE
+    );
+
+    let mut grpc_client = retry_grpc_connect(grpc_url)
+        .await
+        .expect("gRPC client should connect after retries");
+    let grpc_error = grpc_client
+        .predict(PredictRequest {
+            payload,
+            content_type: "text/csv".to_string(),
+            accept: "application/json".to_string(),
+        })
+        .await
+        .expect_err("grpc should reject oversized payload");
+    assert_eq!(grpc_error.code(), tonic::Code::InvalidArgument);
+    assert!(grpc_error.message().contains("payload too large"));
+
+    http_handle.abort();
+    grpc_handle.abort();
+}
+
+#[tokio::test]
+async fn grpc_predict_uses_defaults_when_content_type_and_accept_are_missing() {
+    let (_tmp, mut cfg) = build_cfg_with_temp_model();
+    cfg.default_content_type = "application/json".to_string();
+    cfg.default_accept = "application/json".to_string();
+    let (grpc_url, grpc_handle) = start_grpc_server(cfg).await;
+
+    let mut grpc_client = retry_grpc_connect(grpc_url)
+        .await
+        .expect("gRPC client should connect after retries");
+    let reply = grpc_client
+        .predict(PredictRequest {
+            payload: br#"{"instances":[[1.0,2.0],[3.0,4.0]]}"#.to_vec(),
+            content_type: "".to_string(),
+            accept: "".to_string(),
+        })
+        .await
+        .expect("grpc predict should use defaults")
+        .into_inner();
+
+    assert_eq!(reply.content_type, "application/json");
+    assert_eq!(reply.metadata.get("batch_size"), Some(&"2".to_string()));
+
+    grpc_handle.abort();
+}
+
+#[tokio::test]
+async fn grpc_predict_returns_internal_when_model_fails_to_load() {
+    let tmp = tempfile::tempdir().expect("temp dir");
+    let cfg = AppConfig {
+        model_type: "onnx".to_string(),
+        model_dir: tmp.path().to_string_lossy().to_string(),
+        model_filename: "missing.onnx".to_string(),
+        ..AppConfig::default()
+    };
+    let (grpc_url, grpc_handle) = start_grpc_server(cfg).await;
+
+    let mut grpc_client = retry_grpc_connect(grpc_url)
+        .await
+        .expect("gRPC client should connect after retries");
+    let grpc_error = grpc_client
+        .predict(PredictRequest {
+            payload: b"1,2\n".to_vec(),
+            content_type: "text/csv".to_string(),
+            accept: "application/json".to_string(),
+        })
+        .await
+        .expect_err("grpc predict should fail with load error");
+    assert_eq!(grpc_error.code(), tonic::Code::Internal);
+    assert!(grpc_error.message().contains("ONNX model not found"));
+
     grpc_handle.abort();
 }
 
