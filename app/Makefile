@@ -97,7 +97,7 @@ coverage: ## Generate coverage report (Cobertura XML)
 		exit 1; \
 	}
 	mkdir -p "$(COVERAGE_DIR)"
-	$(CARGO) llvm-cov --all-features --workspace --tests --bins --cobertura --output-path "$(COVERAGE_XML)"
+	$(CARGO) llvm-cov --all-features --workspace --all-targets --cobertura --output-path "$(COVERAGE_XML)"
 
 .PHONY: coverage-check
 coverage-check: ## Fail if coverage is below COVERAGE_MIN

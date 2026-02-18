@@ -571,7 +571,7 @@ impl AppState {
         let payload = if self.cfg.predictions_only {
             predictions
         } else {
-            let mut output: serde_json::Map<String, Value> = Default::default();
+            let mut output: serde_json::Map<String, Value> = serde_json::Map::default();
             output.insert(self.cfg.json_output_key.clone(), predictions);
             Value::Object(output)
         };
@@ -1166,6 +1166,7 @@ impl grpc::inference_service_server::InferenceService for InferenceGrpcService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::http::HeaderValue;
 
     #[test]
     fn json_instances_are_parsed() {
@@ -1204,5 +1205,143 @@ mod tests {
             .expect("csv format should pass");
         assert_eq!(content_type, "text/csv");
         assert_eq!(String::from_utf8(body).expect("utf8"), "1\n2");
+    }
+
+    #[test]
+    fn strip_content_type_params_normalizes_media_type() {
+        assert_eq!(
+            strip_content_type_params("Application/JSON; charset=utf-8"),
+            "application/json"
+        );
+    }
+
+    #[test]
+    fn load_json_map_handles_empty_and_invalid_values() {
+        let empty = load_json_map("   ").expect("empty map");
+        assert!(empty.is_empty());
+
+        let err = load_json_map("[]").expect_err("non-object should fail");
+        assert!(err.contains("Expected JSON object mapping"));
+    }
+
+    #[test]
+    fn parse_json_records_supports_instances_and_object_shape() {
+        let cfg = AppConfig::default();
+        let from_instances = parse_json_records(br#"{"instances":[{"a":1},{"a":2}]}"#, &cfg)
+            .expect("instances parse");
+        assert_eq!(from_instances.len(), 2);
+
+        let from_object = parse_json_records(br#"{"a":1,"b":2}"#, &cfg).expect("object parse");
+        assert_eq!(from_object.len(), 1);
+        assert!(from_object[0].contains_key("a"));
+    }
+
+    #[test]
+    fn parse_jsonl_records_rejects_non_object_lines() {
+        let err = parse_jsonl_records(br#"[1,2,3]"#).expect_err("must reject non-object");
+        assert!(err.contains("JSON object"));
+    }
+
+    #[test]
+    fn parse_json_rows_and_jsonl_rows_support_feature_shortcuts() {
+        let cfg = AppConfig::default();
+        let rows = parse_json_rows(br#"{"features":[1.0,2.0]}"#, &cfg).expect("features row");
+        assert_eq!(rows, vec![vec![1.0, 2.0]]);
+
+        let jsonl = br#"{"features":[3,4]}
+{"features":[5,6]}"#;
+        let rows = parse_jsonl_rows(jsonl, &cfg).expect("features jsonl");
+        assert_eq!(rows, vec![vec![3.0, 4.0], vec![5.0, 6.0]]);
+    }
+
+    #[test]
+    fn value_to_numeric_rows_handles_scalar_and_rejects_text() {
+        let scalar = value_to_numeric_rows(&Value::from(7.5)).expect("scalar rows");
+        assert_eq!(scalar, vec![vec![7.5]]);
+        let err = value_to_numeric_rows(&Value::String("x".to_string()))
+            .expect_err("non-numeric should fail");
+        assert!(err.contains("Expected tabular numeric payload"));
+    }
+
+    #[test]
+    fn parse_csv_rows_supports_header_modes() {
+        let cfg_true = AppConfig {
+            csv_has_header: "true".to_string(),
+            ..AppConfig::default()
+        };
+        let rows =
+            parse_csv_rows(b"f1,f2\n1,2\n3,4\n", &cfg_true).expect("header=true should parse");
+        assert_eq!(rows, vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+
+        let cfg_invalid = AppConfig {
+            csv_has_header: "maybe".to_string(),
+            ..AppConfig::default()
+        };
+        let err = parse_csv_rows(b"1,2\n", &cfg_invalid).expect_err("invalid mode should fail");
+        assert!(err.contains("CSV_HAS_HEADER must be auto|true|false"));
+    }
+
+    #[test]
+    fn parse_col_selector_supports_range_and_list() {
+        assert_eq!(
+            parse_col_selector("1:3", 5).expect("range selector"),
+            vec![1, 2]
+        );
+        assert_eq!(
+            parse_col_selector("0,2,4", 5).expect("list selector"),
+            vec![0, 2, 4]
+        );
+        let err = parse_col_selector("bad", 5).expect_err("invalid selector must fail");
+        assert!(err.contains("Invalid column selector"));
+    }
+
+    #[test]
+    fn format_output_wraps_predictions_when_predictions_only_is_false() {
+        let cfg = AppConfig {
+            predictions_only: false,
+            json_output_key: "y_hat".to_string(),
+            ..AppConfig::default()
+        };
+        let state = AppState::new(cfg);
+        let (body, content_type) = state
+            .format_output(Value::Array(vec![Value::from(1)]), "application/json")
+            .expect("json output");
+        assert_eq!(content_type, "application/json");
+        let parsed: Value = serde_json::from_slice(&body).expect("valid json");
+        assert_eq!(parsed, json!({"y_hat":[1]}));
+    }
+
+    #[test]
+    fn header_value_with_fallback_prefers_primary_then_fallback_then_default() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("text/csv"));
+        let value = header_value_with_fallback(
+            &headers,
+            CONTENT_TYPE,
+            SAGEMAKER_CONTENT_TYPE_HEADER,
+            "application/json",
+        );
+        assert_eq!(value, "text/csv");
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HeaderName::from_static(SAGEMAKER_CONTENT_TYPE_HEADER),
+            HeaderValue::from_static("application/json"),
+        );
+        let fallback = header_value_with_fallback(
+            &headers,
+            CONTENT_TYPE,
+            SAGEMAKER_CONTENT_TYPE_HEADER,
+            "text/plain",
+        );
+        assert_eq!(fallback, "application/json");
+
+        let defaulted = header_value_with_fallback(
+            &HeaderMap::new(),
+            CONTENT_TYPE,
+            SAGEMAKER_CONTENT_TYPE_HEADER,
+            "text/plain",
+        );
+        assert_eq!(defaulted, "text/plain");
     }
 }

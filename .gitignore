@@ -8,3 +8,7 @@ app/target/
 # Rust tooling
 .cargo/
 rustfmt.toml.bak
+
+# Python cache artifacts (examples/scripts)
+__pycache__/
+*.py[cod]
