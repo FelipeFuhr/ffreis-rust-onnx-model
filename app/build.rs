@@ -2,10 +2,7 @@ fn main() {
     const PROTOC_ENV_KEY: &str = "PROTOC";
     let protoc_path =
         protoc_bin_vendored::protoc_bin_path().expect("protoc binary should be available");
-    // SAFETY: build script sets process env before invoking tonic-build.
-    unsafe {
-        std::env::set_var(PROTOC_ENV_KEY, protoc_path);
-    }
+    std::env::set_var(PROTOC_ENV_KEY, protoc_path);
 
     println!("cargo:rerun-if-changed=proto/onnx_serving_grpc/inference.proto");
     println!("cargo:rerun-if-env-changed={PROTOC_ENV_KEY}");
