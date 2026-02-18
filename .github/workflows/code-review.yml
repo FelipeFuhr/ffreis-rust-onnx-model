@@ -5,6 +5,8 @@ on:
     branches: [ main ]
     paths:
       - "app/**"
+      - "docs/openapi.yaml"
+      - "scripts/check_openapi.py"
       - "Makefile"
       - "rust-toolchain.toml"
       - ".github/workflows/code-review.yml"
@@ -12,6 +14,8 @@ on:
     branches: [ main ]
     paths:
       - "app/**"
+      - "docs/openapi.yaml"
+      - "scripts/check_openapi.py"
       - "Makefile"
       - "rust-toolchain.toml"
       - ".github/workflows/code-review.yml"
@@ -33,6 +37,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b
+        with:
+          enable-cache: true
+
       - name: Install Rust (fmt + clippy)
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
@@ -49,6 +57,11 @@ jobs:
         run: |
           set -euo pipefail
           make -C app lint
+
+      - name: OpenAPI contract check
+        run: |
+          set -euo pipefail
+          make openapi-check
 
       - name: Install cargo-llvm-cov
         run: |

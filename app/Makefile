@@ -43,6 +43,18 @@ clippy: ## Run clippy lints
 lint: fmt-check clippy ## Run format check and clippy
 
 # ------------------------------------------------------------------------------
+# gRPC + parity
+# ------------------------------------------------------------------------------
+
+.PHONY: grpc-check
+grpc-check: ## Verify protobuf/gRPC contract compiles
+	$(CARGO) check --verbose
+
+.PHONY: test-grpc-parity
+test-grpc-parity: ## Run HTTP/gRPC parity integration tests
+	$(CARGO) test --test integration_tests --verbose
+
+# ------------------------------------------------------------------------------
 # Build & test
 # ------------------------------------------------------------------------------
 
@@ -85,7 +97,7 @@ coverage: ## Generate coverage report (Cobertura XML)
 		exit 1; \
 	}
 	mkdir -p "$(COVERAGE_DIR)"
-	$(CARGO) llvm-cov --all-features --workspace --tests --bins --cobertura --output-path "$(COVERAGE_XML)"
+	$(CARGO) llvm-cov --all-features --workspace --all-targets --cobertura --output-path "$(COVERAGE_XML)"
 
 .PHONY: coverage-check
 coverage-check: ## Fail if coverage is below COVERAGE_MIN
