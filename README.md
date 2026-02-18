@@ -21,6 +21,10 @@ For readiness and invocation handling, the service expects an ONNX model path:
 - `SM_MODEL_DIR/MODEL_FILENAME`
 - defaults to `/opt/ml/model/model.onnx`
 
+OpenAPI transport contract:
+
+- `docs/openapi.yaml`
+
 ## gRPC surface
 
 Proto: `app/proto/onnx_serving_grpc/inference.proto`
