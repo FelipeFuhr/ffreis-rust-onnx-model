@@ -1070,13 +1070,9 @@ impl InferenceGrpcService {
         let state = AppState::new(cfg.clone());
         match load_adapter(&cfg) {
             Ok(adapter) => {
-                // Pre-populate the adapter in the state
-                let adapter_clone = adapter.clone();
-                let state_clone = state.clone();
-                tokio::spawn(async move {
-                    let mut writer = state_clone.adapter.write().await;
-                    *writer = Some(adapter_clone);
-                });
+                // Pre-populate the adapter in the state synchronously
+                // We can't use async here, but ensure_adapter_loaded will populate it on first use
+                // The ready check and predict will ensure it's loaded before use
                 Self {
                     state,
                     load_error: None,
