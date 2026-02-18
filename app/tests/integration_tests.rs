@@ -221,10 +221,18 @@ async fn record_limit_violation_maps_to_http_400_and_grpc_invalid_argument() {
     cfg.max_records = 1;
     let (http_base, http_handle) = start_http_server(cfg.clone()).await;
     let (grpc_url, grpc_handle) = start_grpc_server(cfg).await;
-    tokio::time::sleep(Duration::from_millis(75)).await;
+
+    // Wait for servers to be ready using retry mechanisms
+    let client = reqwest::Client::new();
+    assert!(
+        poll_until_ready(&client, &http_base).await,
+        "HTTP server should start"
+    );
+    retry_grpc_connect(grpc_url.clone())
+        .await
+        .expect("gRPC server should start");
 
     let payload = br#"{"instances":[[1.0,2.0],[3.0,4.0]]}"#.to_vec();
-    let client = reqwest::Client::new();
     let http_response = client
         .post(format!("{http_base}/invocations"))
         .header("content-type", "application/json")
