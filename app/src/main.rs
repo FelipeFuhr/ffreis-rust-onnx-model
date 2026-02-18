@@ -1,6 +1,10 @@
 use std::env;
 
-use app::{run_grpc_server, run_http_server, AppConfig};
+use app::{init_telemetry, run_grpc_server, run_http_server, AppConfig};
+
+const SERVE_MODE_ENV_KEY: &str = "SERVE_MODE";
+const HOST_ENV_KEY: &str = "HOST";
+const PORT_ENV_KEY: &str = "PORT";
 
 fn resolve_runtime_settings(
     mode_raw: Option<String>,
@@ -18,11 +22,15 @@ fn resolve_runtime_settings(
 #[tokio::main]
 async fn main() {
     let (mode, host, port) = resolve_runtime_settings(
-        env::var("SERVE_MODE").ok(),
-        env::var("HOST").ok(),
-        env::var("PORT").ok(),
+        env::var(SERVE_MODE_ENV_KEY).ok(),
+        env::var(HOST_ENV_KEY).ok(),
+        env::var(PORT_ENV_KEY).ok(),
     );
     let cfg = AppConfig::default();
+    if let Err(err) = init_telemetry(&cfg) {
+        eprintln!("telemetry initialization failed: {err}");
+        std::process::exit(1);
+    }
 
     match mode.as_str() {
         "grpc" => {

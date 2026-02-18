@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-use std::env;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -19,7 +17,13 @@ use tokio::time::timeout;
 use tonic::transport::Server;
 use tonic::{Code, Request, Response, Status};
 use tract_onnx::prelude::{tvec, Framework, InferenceModelExt, RunnableModel, TypedFact, TypedOp};
-use uuid::Uuid;
+
+mod config;
+mod telemetry;
+
+pub use config::AppConfig;
+use telemetry::attach_trace_correlation_headers;
+pub use telemetry::init_telemetry;
 
 pub mod grpc {
     tonic::include_proto!("onnxserving.grpc");
@@ -35,149 +39,6 @@ const JSON_LINES_CONTENT_TYPES: &[&str] = &[
 const CSV_CONTENT_TYPES: &[&str] = &["text/csv", "application/csv"];
 const SAGEMAKER_CONTENT_TYPE_HEADER: &str = "x-amzn-sagemaker-content-type";
 const SAGEMAKER_ACCEPT_HEADER: &str = "x-amzn-sagemaker-accept";
-
-#[derive(Clone, Debug)]
-pub struct AppConfig {
-    pub service_name: String,
-    pub service_version: String,
-    pub deployment_env: String,
-    pub model_dir: String,
-    pub model_type: String,
-    pub model_filename: String,
-    pub input_mode: String,
-    pub default_content_type: String,
-    pub default_accept: String,
-    pub tabular_dtype: String,
-    pub csv_delimiter: String,
-    pub csv_has_header: String,
-    pub csv_skip_blank_lines: bool,
-    pub json_key_instances: String,
-    pub jsonl_features_key: String,
-    pub tabular_id_columns: String,
-    pub tabular_feature_columns: String,
-    pub predictions_only: bool,
-    pub json_output_key: String,
-    pub max_body_bytes: usize,
-    pub max_records: usize,
-    pub max_inflight: usize,
-    pub acquire_timeout_s: f64,
-    pub prometheus_enabled: bool,
-    pub prometheus_path: String,
-    pub otel_enabled: bool,
-    pub otel_endpoint: String,
-    pub otel_headers: String,
-    pub otel_timeout_s: f64,
-    pub onnx_input_map_json: String,
-    pub onnx_output_map_json: String,
-    pub onnx_input_dtype_map_json: String,
-    pub onnx_dynamic_batch: bool,
-    pub tabular_num_features: usize,
-    pub onnx_input_name: String,
-    pub onnx_output_name: String,
-    pub onnx_output_index: usize,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            service_name: env_str("SERVICE_NAME", "model-serving-universal"),
-            service_version: env_str("SERVICE_VERSION", "dev"),
-            deployment_env: env_str("DEPLOYMENT_ENV", "local"),
-            model_dir: env_str("SM_MODEL_DIR", "/opt/ml/model"),
-            model_type: env_str("MODEL_TYPE", "").trim().to_ascii_lowercase(),
-            model_filename: env_str("MODEL_FILENAME", "").trim().to_string(),
-            input_mode: env_str("INPUT_MODE", "tabular").trim().to_ascii_lowercase(),
-            default_content_type: env_str("DEFAULT_CONTENT_TYPE", "application/json"),
-            default_accept: env_str("DEFAULT_ACCEPT", "application/json"),
-            tabular_dtype: env_str("TABULAR_DTYPE", "float32")
-                .trim()
-                .to_ascii_lowercase(),
-            csv_delimiter: env_str("CSV_DELIMITER", ","),
-            csv_has_header: env_str("CSV_HAS_HEADER", "auto")
-                .trim()
-                .to_ascii_lowercase(),
-            csv_skip_blank_lines: env_bool("CSV_SKIP_BLANK_LINES", true),
-            json_key_instances: env_str("JSON_KEY_INSTANCES", "instances"),
-            jsonl_features_key: env_str("JSONL_FEATURES_KEY", "features"),
-            tabular_id_columns: env_str("TABULAR_ID_COLUMNS", "").trim().to_string(),
-            tabular_feature_columns: env_str("TABULAR_FEATURE_COLUMNS", "").trim().to_string(),
-            predictions_only: env_bool("RETURN_PREDICTIONS_ONLY", true),
-            json_output_key: env_str("JSON_OUTPUT_KEY", "predictions"),
-            max_body_bytes: env_usize("MAX_BODY_BYTES", 6 * 1024 * 1024),
-            max_records: env_usize("MAX_RECORDS", 5000),
-            max_inflight: env_usize("MAX_INFLIGHT", 16),
-            acquire_timeout_s: env_f64("ACQUIRE_TIMEOUT_S", 0.25),
-            prometheus_enabled: env_bool("PROMETHEUS_ENABLED", true),
-            prometheus_path: env_str("PROMETHEUS_PATH", "/metrics"),
-            otel_enabled: env_bool("OTEL_ENABLED", true),
-            otel_endpoint: env_str("OTEL_EXPORTER_OTLP_ENDPOINT", "")
-                .trim()
-                .to_string(),
-            otel_headers: env_str("OTEL_EXPORTER_OTLP_HEADERS", ""),
-            otel_timeout_s: env_f64("OTEL_EXPORTER_OTLP_TIMEOUT", 10.0),
-            onnx_input_map_json: env_str("ONNX_INPUT_MAP_JSON", "").trim().to_string(),
-            onnx_output_map_json: env_str("ONNX_OUTPUT_MAP_JSON", "").trim().to_string(),
-            onnx_input_dtype_map_json: env_str("ONNX_INPUT_DTYPE_MAP_JSON", "").trim().to_string(),
-            onnx_dynamic_batch: env_bool("ONNX_DYNAMIC_BATCH", true),
-            tabular_num_features: env_usize("TABULAR_NUM_FEATURES", 0),
-            onnx_input_name: env_str("ONNX_INPUT_NAME", "").trim().to_string(),
-            onnx_output_name: env_str("ONNX_OUTPUT_NAME", "").trim().to_string(),
-            onnx_output_index: env_usize("ONNX_OUTPUT_INDEX", 0),
-        }
-    }
-}
-
-fn env_str(name: &str, default: &str) -> String {
-    env::var(name).unwrap_or_else(|_| default.to_string())
-}
-
-fn env_bool(name: &str, default: bool) -> bool {
-    match env::var(name) {
-        Ok(value) => matches!(
-            value.trim().to_ascii_lowercase().as_str(),
-            "1" | "true" | "yes" | "y" | "on"
-        ),
-        Err(_) => default,
-    }
-}
-
-fn env_usize(name: &str, default: usize) -> usize {
-    env::var(name)
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .unwrap_or(default)
-}
-
-fn env_f64(name: &str, default: f64) -> f64 {
-    env::var(name)
-        .ok()
-        .and_then(|value| value.parse::<f64>().ok())
-        .unwrap_or(default)
-}
-
-impl AppConfig {
-    fn model_path(&self) -> PathBuf {
-        let dir = Path::new(&self.model_dir);
-        if !dir.exists() {
-            panic!(
-                "Configured model directory '{}' does not exist",
-                self.model_dir
-            );
-        }
-        if !dir.is_dir() {
-            panic!(
-                "Configured model path '{}' is not a directory",
-                self.model_dir
-            );
-        }
-        let filename = if self.model_filename.trim().is_empty() {
-            "model.onnx".to_string()
-        } else {
-            self.model_filename.clone()
-        };
-        dir.join(filename)
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct ParsedInput {
@@ -988,21 +849,6 @@ async fn http_invocations(
     }
 }
 
-fn attach_trace_correlation_headers(response: &mut AxumResponse) {
-    let trace_id = Uuid::new_v4().simple().to_string();
-    let span_id = &trace_id[..16];
-    if let Ok(value) = trace_id.parse() {
-        response
-            .headers_mut()
-            .insert(HeaderName::from_static("x-trace-id"), value);
-    }
-    if let Ok(value) = span_id.parse() {
-        response
-            .headers_mut()
-            .insert(HeaderName::from_static("x-span-id"), value);
-    }
-}
-
 fn header_value_with_fallback(
     headers: &HeaderMap,
     primary: HeaderName,
@@ -1069,7 +915,7 @@ impl InferenceGrpcService {
     fn new(cfg: AppConfig) -> Self {
         let state = AppState::new(cfg.clone());
         match load_adapter(&cfg) {
-            Ok(adapter) => {
+            Ok(_) => {
                 // Pre-populate the adapter in the state synchronously
                 // We can't use async here, but ensure_adapter_loaded will populate it on first use
                 // The ready check and predict will ensure it's loaded before use
@@ -1202,7 +1048,32 @@ impl grpc::inference_service_server::InferenceService for InferenceGrpcService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::grpc::inference_service_server::InferenceService;
+    use axum::body::Bytes;
     use axum::http::HeaderValue;
+    use std::fs;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+    use tokio::sync::{RwLock, Semaphore};
+    use tonic::Request;
+
+    fn cfg_with_temp_model_fixture() -> (TempDir, AppConfig) {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let model_path: PathBuf = tmp.path().join("model.onnx");
+        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join("model.onnx");
+        let fixture = fs::read(&fixture_path).expect("read fixture model");
+        fs::write(&model_path, fixture).expect("write fixture model");
+        let cfg = AppConfig {
+            model_type: "onnx".to_string(),
+            model_dir: tmp.path().to_string_lossy().to_string(),
+            model_filename: "model.onnx".to_string(),
+            ..AppConfig::default()
+        };
+        (tmp, cfg)
+    }
 
     #[test]
     fn json_instances_are_parsed() {
@@ -1279,6 +1150,20 @@ mod tests {
     }
 
     #[test]
+    fn parse_json_records_reject_non_object_array_entries() {
+        let cfg = AppConfig::default();
+        let err = parse_json_records(br#"{"instances":[{"a":1},2]}"#, &cfg)
+            .expect_err("mixed records must fail");
+        assert!(err.contains("expects each record to be a JSON object"));
+    }
+
+    #[test]
+    fn parse_jsonl_records_reject_invalid_utf8() {
+        let err = parse_jsonl_records(&[0x80]).expect_err("invalid utf8 must fail");
+        assert!(err.contains("invalid utf-8"));
+    }
+
+    #[test]
     fn parse_json_rows_and_jsonl_rows_support_feature_shortcuts() {
         let cfg = AppConfig::default();
         let rows = parse_json_rows(br#"{"features":[1.0,2.0]}"#, &cfg).expect("features row");
@@ -1318,10 +1203,34 @@ mod tests {
     }
 
     #[test]
+    fn parse_csv_rows_covers_empty_and_invalid_numeric_paths() {
+        let cfg = AppConfig::default();
+        let empty_err = parse_csv_rows(b"", &cfg).expect_err("empty csv must fail");
+        assert!(empty_err.contains("Empty CSV payload"));
+
+        let cfg_no_header = AppConfig {
+            csv_has_header: "false".to_string(),
+            ..AppConfig::default()
+        };
+        let bad_err =
+            parse_csv_rows(b"1,abc\n", &cfg_no_header).expect_err("non-numeric token must fail");
+        assert!(bad_err.contains("Expected numeric value in CSV payload"));
+    }
+
+    #[test]
     fn parse_col_selector_supports_range_and_list() {
+        assert_eq!(
+            parse_col_selector("", 3).expect("empty selector means all columns"),
+            vec![0, 1, 2]
+        );
         assert_eq!(
             parse_col_selector("1:3", 5).expect("range selector"),
             vec![1, 2]
+        );
+        assert_eq!(parse_col_selector(":2", 5).expect("open start"), vec![0, 1]);
+        assert_eq!(
+            parse_col_selector("2:", 5).expect("open end"),
+            vec![2, 3, 4]
         );
         assert_eq!(
             parse_col_selector("0,2,4", 5).expect("list selector"),
@@ -1379,5 +1288,295 @@ mod tests {
             "text/plain",
         );
         assert_eq!(defaulted, "text/plain");
+    }
+
+    #[test]
+    fn format_csv_predictions_and_value_to_string_cover_non_array_cases() {
+        let scalar = format_csv_predictions(&Value::from(true), ",").expect("scalar csv");
+        assert_eq!(scalar, "true");
+
+        let rows = format_csv_predictions(
+            &Value::Array(vec![
+                Value::Array(vec![Value::Null, Value::from(2)]),
+                Value::Array(vec![Value::from("x"), Value::from(4)]),
+            ]),
+            ";",
+        )
+        .expect("row csv");
+        assert_eq!(rows, ";2\nx;4");
+    }
+
+    #[test]
+    fn parsed_input_batch_size_validates_tensors() {
+        let empty = ParsedInput {
+            x: None,
+            tensors: Some(HashMap::new()),
+            meta: None,
+        };
+        let err = empty.batch_size().expect_err("empty tensors must fail");
+        assert!(err.contains("no features/tensors"));
+
+        let mut bad_type = HashMap::new();
+        bad_type.insert("x".to_string(), Value::from(1));
+        let parsed = ParsedInput {
+            x: None,
+            tensors: Some(bad_type),
+            meta: None,
+        };
+        let err = parsed.batch_size().expect_err("scalar tensor must fail");
+        assert!(err.contains("array-like"));
+    }
+
+    #[test]
+    fn app_config_model_path_panics_when_dir_missing_or_not_directory() {
+        let missing = AppConfig {
+            model_dir: "/definitely/missing/dir".to_string(),
+            ..AppConfig::default()
+        };
+        let missing_panic = std::panic::catch_unwind(|| missing.model_path());
+        assert!(missing_panic.is_err());
+
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let file_path = tmp.path().join("model.onnx");
+        fs::write(&file_path, b"dummy").expect("write file");
+        let not_dir = AppConfig {
+            model_dir: file_path.to_string_lossy().to_string(),
+            ..AppConfig::default()
+        };
+        let not_dir_panic = std::panic::catch_unwind(|| not_dir.model_path());
+        assert!(not_dir_panic.is_err());
+    }
+
+    #[test]
+    fn load_adapter_rejects_unknown_model_type_and_missing_model() {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let unknown = AppConfig {
+            model_type: "xgboost".to_string(),
+            model_dir: tmp.path().to_string_lossy().to_string(),
+            ..AppConfig::default()
+        };
+        let err = match load_adapter(&unknown) {
+            Ok(_) => panic!("unknown model type should fail"),
+            Err(err) => err,
+        };
+        assert!(err.contains("not implemented"));
+
+        let missing = AppConfig {
+            model_type: "".to_string(),
+            model_dir: tmp.path().to_string_lossy().to_string(),
+            ..AppConfig::default()
+        };
+        let err = match load_adapter(&missing) {
+            Ok(_) => panic!("missing model should fail"),
+            Err(err) => err,
+        };
+        assert!(err.contains("Set MODEL_TYPE=onnx"));
+    }
+
+    #[test]
+    fn parse_payload_rejects_unsupported_modes_and_content_types() {
+        let cfg_mode = AppConfig {
+            input_mode: "image".to_string(),
+            ..AppConfig::default()
+        };
+        let mode_state = AppState::new(cfg_mode);
+        let mode_err = mode_state
+            .parse_payload(b"1,2\n", "text/csv")
+            .expect_err("non-tabular mode should fail");
+        assert!(mode_err.contains("not implemented"));
+
+        let cfg_content = AppConfig::default();
+        let content_state = AppState::new(cfg_content);
+        let content_err = content_state
+            .parse_payload(b"1,2\n", "application/xml")
+            .expect_err("unsupported content type should fail");
+        assert!(content_err.contains("Unsupported Content-Type"));
+    }
+
+    #[test]
+    fn parse_payload_validates_feature_count_and_header_only_csv() {
+        let cfg = AppConfig {
+            tabular_num_features: 3,
+            ..AppConfig::default()
+        };
+        let state = AppState::new(cfg);
+        let mismatch_err = state
+            .parse_payload(b"1,2\n", "text/csv")
+            .expect_err("feature mismatch should fail");
+        assert!(mismatch_err.contains("Feature count mismatch"));
+
+        let header_only_cfg = AppConfig {
+            csv_has_header: "true".to_string(),
+            ..AppConfig::default()
+        };
+        let header_state = AppState::new(header_only_cfg);
+        let header_err = header_state
+            .parse_payload(b"f1,f2\n", "text/csv")
+            .expect_err("header-only csv should fail");
+        assert!(header_err.contains("only header row"));
+    }
+
+    #[test]
+    fn parse_payload_multi_input_reports_missing_record_key() {
+        let cfg = AppConfig {
+            onnx_input_map_json: r#"{"a":"input_a","b":"input_b"}"#.to_string(),
+            ..AppConfig::default()
+        };
+        let state = AppState::new(cfg);
+        let payload = br#"{"instances":[{"a":[1.0,2.0]}]}"#;
+        let err = state
+            .parse_payload(payload, "application/json")
+            .expect_err("missing key should fail");
+        assert!(err.contains("Missing key 'b'"));
+    }
+
+    #[test]
+    fn parse_payload_applies_column_selection_paths() {
+        let cfg = AppConfig {
+            tabular_feature_columns: "1".to_string(),
+            ..AppConfig::default()
+        };
+        let state = AppState::new(cfg);
+        let parsed = state
+            .parse_payload(b"1,2\n3,4\n", "text/csv")
+            .expect("feature selector should parse");
+        assert_eq!(parsed.x, Some(vec![vec![2.0], vec![4.0]]));
+
+        let cfg = AppConfig {
+            tabular_id_columns: "0".to_string(),
+            ..AppConfig::default()
+        };
+        let state = AppState::new(cfg);
+        let parsed = state
+            .parse_payload(b"10,2,3\n11,4,5\n", "text/csv")
+            .expect("id selector should infer feature columns");
+        assert_eq!(parsed.x, Some(vec![vec![2.0, 3.0], vec![4.0, 5.0]]));
+    }
+
+    #[tokio::test]
+    async fn http_invocations_returns_too_many_requests_when_no_permit() {
+        let (_tmp, cfg) = cfg_with_temp_model_fixture();
+        let state = Arc::new(AppState {
+            cfg,
+            adapter: Arc::new(RwLock::new(None)),
+            inflight: Arc::new(Semaphore::new(0)),
+        });
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        let response = http_invocations(
+            State(state),
+            headers,
+            Bytes::from_static(br#"{"instances":[[1.0,2.0]]}"#),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
+    async fn http_invocations_accepts_sagemaker_header_fallbacks() {
+        let (_tmp, cfg) = cfg_with_temp_model_fixture();
+        let state = Arc::new(AppState::new(cfg));
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HeaderName::from_static(SAGEMAKER_CONTENT_TYPE_HEADER),
+            HeaderValue::from_static("application/json"),
+        );
+        headers.insert(
+            HeaderName::from_static(SAGEMAKER_ACCEPT_HEADER),
+            HeaderValue::from_static("text/csv"),
+        );
+        let response = http_invocations(
+            State(state),
+            headers,
+            Bytes::from_static(br#"{"instances":[[1.0,2.0],[3.0,4.0]]}"#),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("text/csv")
+        );
+    }
+
+    #[tokio::test]
+    async fn grpc_service_live_ready_and_predict_error_paths() {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let cfg = AppConfig {
+            model_type: "onnx".to_string(),
+            model_dir: tmp.path().to_string_lossy().to_string(),
+            model_filename: "missing.onnx".to_string(),
+            ..AppConfig::default()
+        };
+        let service = InferenceGrpcService::new(cfg);
+
+        let live = service
+            .live(Request::new(grpc::LiveRequest {}))
+            .await
+            .expect("live must succeed")
+            .into_inner();
+        assert!(live.ok);
+
+        let ready = service
+            .ready(Request::new(grpc::ReadyRequest {}))
+            .await
+            .expect("ready must respond")
+            .into_inner();
+        assert!(!ready.ok);
+        assert_eq!(ready.status, "not_ready");
+
+        let predict = service
+            .predict(Request::new(grpc::PredictRequest {
+                payload: b"1,2\n".to_vec(),
+                content_type: "text/csv".to_string(),
+                accept: "application/json".to_string(),
+            }))
+            .await
+            .expect_err("predict should fail when model failed loading");
+        assert_eq!(predict.code(), Code::Internal);
+    }
+
+    #[tokio::test]
+    async fn grpc_predict_returns_resource_exhausted_when_no_inflight_capacity() {
+        let (_tmp, cfg) = cfg_with_temp_model_fixture();
+        let state = AppState {
+            cfg,
+            adapter: Arc::new(RwLock::new(None)),
+            inflight: Arc::new(Semaphore::new(0)),
+        };
+        let service = InferenceGrpcService {
+            state,
+            load_error: None,
+        };
+
+        let result = service
+            .predict(Request::new(grpc::PredictRequest {
+                payload: br#"{"instances":[[1.0,2.0]]}"#.to_vec(),
+                content_type: "application/json".to_string(),
+                accept: "application/json".to_string(),
+            }))
+            .await
+            .expect_err("must fail when semaphore has no permits");
+        assert_eq!(result.code(), Code::ResourceExhausted);
+        assert!(result.message().contains("too_many_requests"));
+    }
+
+    #[tokio::test]
+    async fn grpc_predict_success_populates_metadata_and_json_content_type() {
+        let (_tmp, cfg) = cfg_with_temp_model_fixture();
+        let service = InferenceGrpcService::new(cfg);
+        let reply = service
+            .predict(Request::new(grpc::PredictRequest {
+                payload: br#"{"instances":[[1.0,2.0],[3.0,4.0]]}"#.to_vec(),
+                content_type: "application/json".to_string(),
+                accept: "".to_string(),
+            }))
+            .await
+            .expect("predict should succeed")
+            .into_inner();
+        assert_eq!(reply.content_type, "application/json");
+        assert_eq!(reply.metadata.get("batch_size"), Some(&"2".to_string()));
     }
 }
