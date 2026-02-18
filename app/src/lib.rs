@@ -1153,10 +1153,7 @@ impl grpc::inference_service_server::InferenceService for InferenceGrpcService {
         {
             Ok(Ok(permit)) => permit,
             _ => {
-                return Err(Status::new(
-                    Code::ResourceExhausted,
-                    "too_many_requests",
-                ));
+                return Err(Status::new(Code::ResourceExhausted, "too_many_requests"));
             }
         };
 
