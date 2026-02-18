@@ -231,11 +231,17 @@ impl OnnxAdapter {
             .model_for_path(&path)
             .and_then(|model| model.into_optimized())
             .and_then(|model| model.into_runnable())
-            .ok();
+            .map_err(|e| {
+                format!(
+                    "Failed to load or prepare ONNX model {}: {}",
+                    path.display(),
+                    e
+                )
+            })?;
         let output_map = load_json_map(&cfg.onnx_output_map_json)?;
         Ok(Self {
             cfg,
-            model,
+            model: Some(model),
             output_map,
         })
     }
@@ -326,14 +332,10 @@ impl OnnxAdapter {
 
 impl BaseAdapter for OnnxAdapter {
     fn is_ready(&self) -> bool {
-        true
+        self.model.is_some()
     }
 
     fn predict(&self, parsed_input: &ParsedInput) -> Result<Value, String> {
-        if self.model.is_none() {
-            let batch = parsed_input.batch_size()?;
-            return Ok(Value::Array(vec![Value::from(0_i64); batch]));
-        }
         let rows = Self::parsed_input_to_rows(parsed_input)?;
         let input = Self::rows_to_tensor(&rows)?;
         let model = self
@@ -1106,6 +1108,19 @@ impl grpc::inference_service_server::InferenceService for InferenceGrpcService {
             return Err(Status::new(Code::Internal, err.clone()));
         }
         let req = request.into_inner();
+        
+        // Enforce max_body_bytes to maintain HTTP/gRPC parity
+        if req.payload.len() > self.cfg.max_body_bytes {
+            return Err(Status::new(
+                Code::InvalidArgument,
+                format!(
+                    "payload too large: {} bytes > {} bytes limit",
+                    req.payload.len(),
+                    self.cfg.max_body_bytes
+                ),
+            ));
+        }
+        
         let content_type = if req.content_type.is_empty() {
             self.cfg.default_content_type.as_str()
         } else {
